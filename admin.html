@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DBL Admin Dashboard</title>
+    <title>DBL Secure Admin Dashboard</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
         body { background: #0d1117; color: #fff; padding: 15px; }
+        .login-container { max-width: 400px; margin: 100px auto; background: #161b22; padding: 30px; border-radius: 8px; border: 1px solid #30363d; text-align: center; }
         .header { display: flex; justify-content: space-between; align-items: center; background: #21262d; padding: 15px; border-radius: 8px; margin-bottom: 20px; position: relative; }
         .menu-dots { font-size: 24px; cursor: pointer; background: none; border: none; color: #fff; }
-        .dropdown-menu { display: none; position: absolute; right: 15px; top: 60px; background: #161b22; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; z-index: 100; width: 200px; }
+        .dropdown-menu { display: none; position: absolute; right: 15px; top: 60px; background: #161b22; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; z-index: 100; width: 220px; }
         .dropdown-menu button { width: 100%; padding: 12px; text-align: left; background: none; border: none; color: #fff; cursor: pointer; border-bottom: 1px solid #30363d; font-size: 14px; }
         .dropdown-menu button:hover { background: #21262d; color: #2ea043; }
         .section { display: none; }
@@ -17,94 +18,130 @@
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; background: #161b22; }
         th, td { border: 1px solid #30363d; padding: 10px; text-align: left; }
         th { background: #21262d; color: #2ea043; }
-        .btn-approve { background: #2ea043; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+        .btn-approve, .btn-edit { background: #2ea043; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
         .btn-reject { background: #f85149; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
         .form-control { width: 100%; padding: 10px; background: #0d1117; border: 1px solid #30363d; color: #fff; border-radius: 6px; margin-bottom: 10px; }
         .action-btn { background: #2ea043; color: #fff; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .counter-box { margin-bottom: 15px; font-size: 16px; color: #2ea043; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <h2>DBL Admin Panel</h2>
-        <button class="menu-dots" onclick="toggleMenu()">⋮</button>
-        <div class="dropdown-menu" id="adminMenu">
-            <button onclick="switchTab('users')">👥 Users Info</button>
-            <button onclick="switchTab('withdrawals')">💸 Withdrawals</button>
-            <button onclick="switchTab('deposits')">💳 Deposits</button>
-            <button onclick="switchTab('privacy')">🔒 Users Passwords</button>
-            <button onclick="switchTab('announcements')">📢 Announcements</button>
+    <!-- Secure Login Screen -->
+    <div id="login-screen" class="login-container">
+        <h2>Admin Login</h2>
+        <p style="margin: 15px 0; color: #8b949e; font-size: 13px;">Enter secure password to access panel</p>
+        <input type="password" id="admin-pass" class="form-control" placeholder="Admin Password">
+        <button class="action-btn" style="width: 100%;" onclick="adminLogin()">Login</button>
+    </div>
+
+    <!-- Main Admin Dashboard (Hidden initially) -->
+    <div id="admin-dashboard" style="display: none;">
+        <div class="header">
+            <h2>DBL Admin Panel</h2>
+            <button class="menu-dots" onclick="toggleMenu()">⋮</button>
+            <div class="dropdown-menu" id="adminMenu">
+                <button onclick="switchTab('users')">👥 Users Info</button>
+                <button onclick="switchTab('withdrawals')">💸 Withdrawals</button>
+                <button onclick="switchTab('deposits')">💳 Deposits</button>
+                <button onclick="switchTab('privacy')">🔒 Users Passwords & Edit</button>
+                <button onclick="switchTab('announcements')">📢 Announcements</button>
+            </div>
+        </div>
+
+        <!-- 1. Users Information Tab with Count -->
+        <div id="tab-users" class="section active">
+            <h3>Registered Users</h3>
+            <div id="user-count" class="counter-box">Total Users: 0</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Full Name</th>
+                        <th>Balance</th>
+                        <th>VIP Level</th>
+                    </tr>
+                </thead>
+                <tbody id="users-table-body"></tbody>
+            </table>
+        </div>
+
+        <!-- 2. Withdrawals Tab -->
+        <div id="tab-withdrawals" class="section">
+            <h3>Withdrawal Requests</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Method & Details</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="withdrawals-table-body"></tbody>
+            </table>
+        </div>
+
+        <!-- 3. Deposits Tab -->
+        <div id="tab-deposits" class="section">
+            <h3>Deposit Requests</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Method & Details</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="deposits-table-body"></tbody>
+            </table>
+        </div>
+
+        <!-- 4. Privacy / Passwords Tab with Edit Capability -->
+        <div id="tab-privacy" class="section">
+            <h3>Users Passwords & Edit Credentials</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Password</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="privacy-table-body"></tbody>
+            </table>
+        </div>
+
+        <!-- 5. Announcements Tab -->
+        <div id="tab-announcements" class="section">
+            <h3>Update App Announcement</h3>
+            <textarea id="announcement-input" class="form-control" rows="5" placeholder="Enter announcement text..."></textarea>
+            <button class="action-btn" onclick="updateAnnouncement()">Save Announcement</button>
         </div>
     </div>
 
-    <div id="tab-users" class="section active">
-        <h3>Registered Users</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th>Username</th>
-                    <th>Full Name</th>
-                    <th>Balance</th>
-                    <th>VIP Level</th>
-                </tr>
-            </thead>
-            <tbody id="users-table-body"></tbody>
-        </table>
-    </div>
-
-    <div id="tab-withdrawals" class="section">
-        <h3>Withdrawal Requests</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th>Username</th>
-                    <th>Method & Details</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody id="withdrawals-table-body"></tbody>
-        </table>
-    </div>
-
-    <div id="tab-deposits" class="section">
-        <h3>Deposit Requests</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th>Username</th>
-                    <th>Method & Details</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody id="deposits-table-body"></tbody>
-        </table>
-    </div>
-
-    <div id="tab-privacy" class="section">
-        <h3>Users Passwords & Credentials</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th>Username</th>
-                    <th>Email</th>
-                    <th>Password</th>
-                </tr>
-            </thead>
-            <tbody id="privacy-table-body"></tbody>
-        </table>
-    </div>
-
-    <div id="tab-announcements" class="section">
-        <h3>Update App Announcement</h3>
-        <textarea id="announcement-input" class="form-control" rows="5" placeholder="Enter new announcement text..."></textarea>
-        <button class="action-btn" onclick="updateAnnouncement()">Save Announcement</button>
-    </div>
-
     <script>
+        async function adminLogin() {
+            const password = document.getElementById('admin-pass').value;
+            const res = await fetch('/api/admin/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password })
+            });
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('admin-dashboard').style.display = 'block';
+                loadData('users');
+            } else {
+                alert('Incorrect Admin Password!');
+            }
+        }
+
         function toggleMenu() {
             const menu = document.getElementById('adminMenu');
             menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
@@ -123,11 +160,19 @@
                 const users = await res.json();
                 
                 if (tab === 'users') {
+                    document.getElementById('user-count').innerText = `Total Users: ${users.length}`;
                     const tbody = document.getElementById('users-table-body');
                     tbody.innerHTML = users.map(u => `<tr><td>${u.username}</td><td>${u.fullName}</td><td>$${u.balance}</td><td>${u.vipLevel || 'VIP 1'}</td></tr>`).join('');
                 } else if (tab === 'privacy') {
                     const tbody = document.getElementById('privacy-table-body');
-                    tbody.innerHTML = users.map(u => `<tr><td>${u.username}</td><td>${u.email}</td><td>${u.password}</td></tr>`).join('');
+                    tbody.innerHTML = users.map(u => `
+                        <tr>
+                            <td>${u.username}</td>
+                            <td>${u.email}</td>
+                            <td>${u.password}</td>
+                            <td><button class="btn-edit" onclick="editUser('${u._id}', '${u.username}', '${u.email}', '${u.password}')">Edit</button></td>
+                        </tr>
+                    `).join('');
                 }
             } else if (tab === 'withdrawals') {
                 const res = await fetch('/api/admin/withdrawals');
@@ -162,6 +207,27 @@
             }
         }
 
+        async function editUser(userId, oldUsername, oldEmail, oldPassword) {
+            const newUsername = prompt("Edit Username:", oldUsername);
+            const newEmail = prompt("Edit Email:", oldEmail);
+            const newPassword = prompt("Edit Password:", oldPassword);
+
+            if (!newUsername || !newEmail || !newPassword) return;
+
+            const res = await fetch('/api/admin/user/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, username: newUsername, email: newEmail, password: newPassword })
+            });
+            const result = await res.json();
+            if (result.success) {
+                alert('User credentials updated successfully!');
+                loadData('privacy');
+            } else {
+                alert('Failed to update user.');
+            }
+        }
+
         async function updateStatus(reqId, status) {
             const res = await fetch('/api/admin/transaction/update', {
                 method: 'POST',
@@ -172,8 +238,6 @@
             if (result.success) {
                 alert('Status updated successfully!');
                 location.reload();
-            } else {
-                alert('Failed to update status');
             }
         }
 
@@ -187,13 +251,8 @@
             const result = await res.json();
             if (result.success) {
                 alert('Announcement updated successfully!');
-            } else {
-                alert('Failed to update announcement');
             }
         }
-
-        // Load initial users tab data on start
-        loadData('users');
     </script>
 </body>
 </html>
