@@ -25,6 +25,7 @@ const userSchema = new mongoose.Schema({
     password: String,
     balance: { type: Number, default: 100 },
     vipLevel: { type: String, default: 'VIP 1' },
+    referredBy: { type: String, default: '' }, // Referral field added
     createdAt: { type: Date, default: Date.now }
 });
 
@@ -65,10 +66,10 @@ app.post('/api/admin/login', (req, res) => {
 app.post('/api/register', async (req, res) => {
     try {
         await connectDB();
-        const { fullName, username, email, phone, password } = req.body;
+        const { fullName, username, email, phone, password, referredBy } = req.body; // referredBy added
         const existing = await User.findOne({ username });
         if (existing) return res.status(400).json({ success: false, message: 'Username already exists' });
-        const newUser = new User({ fullName, username, email, phone, password });
+        const newUser = new User({ fullName, username, email, phone, password, referredBy: referredBy || '' });
         await newUser.save();
         res.json({ success: true, user: newUser });
     } catch (err) {
