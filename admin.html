@@ -75,6 +75,8 @@
                         <th>Username</th>
                         <th>Method & Details</th>
                         <th>Amount</th>
+                        <th>Tax (17%)</th>
+                        <th>Net Payout</th>
                         <th>Status</th>
                         <th>Action</th>
                     </tr>
@@ -125,7 +127,6 @@
     </div>
 
     <script>
-        // Yahan apna asal backend ka URL daal dein (Agar koi aur live URL ho toh us se replace kar lein)
         const backendUrl = 'https://dbl-backend.vercel.app';
 
         async function adminLogin() {
@@ -186,6 +187,8 @@
                         <td>${item.username}</td>
                         <td>${item.method} - ${item.accountDetails}</td>
                         <td>$${item.amount}</td>
+                        <td style="color: #f85149;">-$${item.tax || (item.amount * 0.17).toFixed(2)}</td>
+                        <td style="color: #2ea043; font-weight: bold;">$${item.netAmount || (item.amount - (item.amount * 0.17)).toFixed(2)}</td>
                         <td>${item.status}</td>
                         <td>
                             ${item.status === 'Pending' ? `<button class="btn-approve" onclick="updateStatus('${item._id}', 'Approved')">Approve</button> <button class="btn-reject" onclick="updateStatus('${item._id}', 'Rejected')">Reject</button>` : item.status}
