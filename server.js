@@ -1,21 +1,49 @@
 const express = require('express');
 const cors = require('cors');
-const Datastore = require('nedb-promises');
+const mongoose = require('mongoose');
 const path = require('path');
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
+// MongoDB Atlas Connection URI
+const MONGO_URI = 'mongodb+srv://khanreturnsuk_db_user:J80xohaSJ5I4Y1LT@cluster0.irfj6ne.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
+
+mongoose.connect(MONGO_URI)
+    .then(() => console.log('MongoDB Connected Successfully!'))
+    .catch(err => console.log('MongoDB Connection Error:', err));
+
+// Mongoose Schemas & Models
+const userSchema = new mongoose.Schema({
+    fullName: String,
+    username: { type: String, unique: true },
+    email: String,
+    phone: String,
+    password: String,
+    balance: { type: Number, default: 100 },
+    vipLevel: { type: String, default: 'VIP 1' },
+    referredBy: { type: String, default: 'None' },
+    createdAt: { type: Date, default: Date.now }
+});
+
+const transactionSchema = new mongoose.Schema({
+    username: String,
+    type: String,
+    amount: Number,
+    method: String,
+    accountDetails: String,
+    status: { type: String, default: 'Pending' },
+    createdAt: { type: Date, default: Date.now }
+});
+
+const User = mongoose.model('User', userSchema);
+const Transaction = mongoose.model('Transaction', transactionSchema);
+
 // Admin HTML file route
 app.get('/admin.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'admin.html'));
 });
-
-// Database setup
-const usersDB = Datastore.create({ filename: 'users.db', autoload: true });
-const txDB = Datastore.create({ filename: 'transactions.db', autoload: true });
-const newsDB = Datastore.create({ filename: 'news.db', autoload: true });
 
 function getVipLevel(balance) {
     if (balance >= 4000) return "VIP 10";
@@ -34,15 +62,11 @@ function getVipLevel(balance) {
 app.post('/api/register', async (req, res) => {
     try {
         const { fullName, username, email, phone, password } = req.body;
-        const existing = await usersDB.findOne({ username });
+        const existing = await User.findOne({ username });
         if (existing) return res.status(400).json({ success: false, message: 'Username already exists' });
 
-        const newUser = await usersDB.insert({
-            fullName, username, email, phone, password,
-            balance: 100, 
-            vipLevel: 'VIP 1', 
-            createdAt: new Date()
-        });
+        const newUser = new User({ fullName, username, email, phone, password });
+        await newUser.save();
         res.json({ success: true, user: newUser });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -53,10 +77,10 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/transaction', async (req, res) => {
     try {
         const { username, type, amount, method, accountDetails } = req.body;
-        const newTx = await txDB.insert({
-            username, type, amount: Number(amount), method, accountDetails,
-            status: 'Pending', createdAt: new Date()
+        const newTx = new Transaction({
+            username, type, amount: Number(amount), method, accountDetails
         });
+        await newTx.save();
         res.json({ success: true, transaction: newTx });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -66,7 +90,7 @@ app.post('/api/transaction', async (req, res) => {
 // Admin API: Get all registered users
 app.get('/api/admin/users', async (req, res) => {
     try {
-        const users = await usersDB.find({});
+        const users = await User.find({});
         const formattedUsers = users.map(user => {
             const balance = user.balance || 100;
             return {
@@ -85,7 +109,7 @@ app.get('/api/admin/users', async (req, res) => {
 // Admin API: Get all withdrawals
 app.get('/api/admin/withdrawals', async (req, res) => {
     try {
-        const withdrawals = await txDB.find({ type: 'withdrawal' });
+        const withdrawals = await Transaction.find({ type: 'withdrawal' });
         res.json(withdrawals);
     } catch (err) {
         res.status(500).json({ error: 'Server error' });
@@ -96,7 +120,7 @@ app.get('/api/admin/withdrawals', async (req, res) => {
 app.post('/api/admin/withdrawal/update', async (req, res) => {
     const { reqId, status } = req.body;
     try {
-        await txDB.update({ _id: reqId }, { $set: { status: status } });
+        await Transaction.findByIdAndUpdate(reqId, { status: status });
         res.json({ success: true, message: 'Status updated successfully' });
     } catch (err) {
         res.status(500).json({ error: 'Update failed' });
