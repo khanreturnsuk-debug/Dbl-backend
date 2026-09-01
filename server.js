@@ -53,7 +53,6 @@ app.get('/admin.html', (req, res) => res.sendFile(path.join(__dirname, 'admin.ht
 // Admin Secure Login Route
 app.post('/api/admin/login', (req, res) => {
     const { password } = req.body;
-    // Yahan apna secure admin password set kar lein
     if (password === 'admin12345') {
         res.json({ success: true, token: 'secure_admin_token_xyz' });
     } else {
@@ -116,6 +115,18 @@ app.post('/api/deposit', async (req, res) => {
         res.json({ success: true, message: 'Deposit requested' });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// User Transaction History Route (Deposits & Withdrawals)
+app.get('/api/transactions/:username', async (req, res) => {
+    try {
+        await connectDB();
+        const { username } = req.params;
+        const transactions = await Transaction.find({ username }).sort({ createdAt: -1 });
+        res.json(transactions);
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
