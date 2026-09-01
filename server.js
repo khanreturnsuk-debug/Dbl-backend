@@ -179,12 +179,11 @@ app.post('/api/admin/transaction/update', async (req, res) => {
         const tx = await Transaction.findById(reqId);
         if (!tx) return res.status(404).json({ success: false, message: "Transaction nahi mili" });
 
-        // Agar pehle approved nahi tha aur ab approve ho raha hai aur type deposit hai
-        if (tx.status !== 'Approved' && status === 'Approved' && tx.type === 'deposit') {
-            // Case-insensitive regex se user find karein taake spelling ya capital ka masla na ho
+        // Agar status "Approved" kiya ja raha hai aur yeh deposit hai toh balance lazmi barhega
+        if (status === 'Approved' && tx.type === 'deposit') {
             const updatedUser = await User.findOneAndUpdate(
                 { username: { $regex: new RegExp(`^${tx.username}$`, 'i') } }, 
-                { $inc: { balance: tx.amount } },
+                { $inc: { balance: Number(tx.amount) } },
                 { new: true }
             );
             
