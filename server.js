@@ -23,9 +23,10 @@ const userSchema = new mongoose.Schema({
     email: String,
     phone: String,
     password: String,
-    balance: { type: Number, default: 100 },
+    balance: { type: Number, default: 0 },        // Sirf earnings/profits (withdrawable)
+    investedAmount: { type: Number, default: 0 },  // VIP deposit principal (non-withdrawable)
     vipLevel: { type: String, default: 'VIP 1' },
-    referredBy: { type: String, default: '' }, // Referral field added
+    referredBy: { type: String, default: '' },
     createdAt: { type: Date, default: Date.now }
 });
 
@@ -66,7 +67,7 @@ app.post('/api/admin/login', (req, res) => {
 app.post('/api/register', async (req, res) => {
     try {
         await connectDB();
-        const { fullName, username, email, phone, password, referredBy } = req.body; // referredBy added
+        const { fullName, username, email, phone, password, referredBy } = req.body;
         const existing = await User.findOne({ username });
         if (existing) return res.status(400).json({ success: false, message: 'Username already exists' });
         const newUser = new User({ fullName, username, email, phone, password, referredBy: referredBy || '' });
@@ -114,12 +115,12 @@ app.post('/api/withdraw', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Minimum withdrawal amount is $90' });
         }
 
-        // Check user balance
+        // Check user earnings balance (deposited principal cannot be withdrawn)
         const user = await User.findOne({ username: { $regex: new RegExp(`^${username}$`, 'i') } });
         if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
         if (user.balance < withdrawAmount) {
-            return res.status(400).json({ success: false, message: 'Insufficient balance' });
+            return res.status(400).json({ success: false, message: 'Insufficient earnings balance for withdrawal. Deposited funds cannot be withdrawn.' });
         }
 
         const tax = withdrawAmount * 0.17;
@@ -233,11 +234,11 @@ app.post('/api/admin/transaction/update', async (req, res) => {
         const normalizedStatus = status ? status.toLowerCase() : '';
         const normalizedType = tx.type ? tx.type.toLowerCase() : '';
 
-        // Deposit Approve hone par balance add hoga
+        // Deposit Approve hone par amount investedAmount mein jayegi (balance mein nahi, taake withdraw na ho sake)
         if ((normalizedStatus === 'approved' || normalizedStatus === 'approve') && normalizedType === 'deposit' && tx.status !== 'Approved') {
             const updatedUser = await User.findOneAndUpdate(
                 { username: { $regex: new RegExp(`^${tx.username}$`, 'i') } }, 
-                { $inc: { balance: Number(tx.amount) } },
+                { $inc: { investedAmount: Number(tx.amount) } },
                 { new: true }
             );
             
@@ -246,7 +247,7 @@ app.post('/api/admin/transaction/update', async (req, res) => {
             }
         }
 
-        // Withdrawal Approve hone par user ke balance se amount deduct hogi
+        // Withdrawal Approve hone par user ke earnings balance se amount deduct hogi
         if ((normalizedStatus === 'approved' || normalizedStatus === 'approve') && normalizedType === 'withdrawal' && tx.status !== 'Approved') {
             const updatedUser = await User.findOneAndUpdate(
                 { username: { $regex: new RegExp(`^${tx.username}$`, 'i') } }, 
