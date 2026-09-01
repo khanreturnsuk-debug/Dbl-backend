@@ -182,7 +182,7 @@ app.post('/api/admin/transaction/update', async (req, res) => {
         const normalizedStatus = status ? status.toLowerCase() : '';
         const normalizedType = tx.type ? tx.type.toLowerCase() : '';
 
-        // Case-insensitive check for status and deposit type
+        // Har baar jab status Approved kiya jaye ga, balance user mein add hojaye ga
         if ((normalizedStatus === 'approved' || normalizedStatus === 'approve') && normalizedType === 'deposit') {
             const updatedUser = await User.findOneAndUpdate(
                 { username: { $regex: new RegExp(`^${tx.username}$`, 'i') } }, 
