@@ -10,9 +10,12 @@ app.use(cors());
 // MongoDB Atlas Connection URI
 const MONGO_URI = 'mongodb+srv://khanreturnsuk_db_user:J80xohaSJ5I4Y1LT@cluster0.irfj6ne.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
 
-mongoose.connect(MONGO_URI)
-    .then(() => console.log('MongoDB Connected Successfully!'))
-    .catch(err => console.log('MongoDB Connection Error:', err));
+// Prevent multiple connections in serverless environment
+if (mongoose.connection.readyState === 0) {
+    mongoose.connect(MONGO_URI)
+        .then(() => console.log('MongoDB Connected Successfully!'))
+        .catch(err => console.log('MongoDB Connection Error:', err));
+}
 
 // Mongoose Schemas & Models
 const userSchema = new mongoose.Schema({
@@ -37,18 +40,19 @@ const transactionSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
 });
 
-const User = mongoose.model('User', userSchema);
-const Transaction = mongoose.model('Transaction', transactionSchema);
-aapp.get('/', (req, res) => {
+const User = mongoose.models.User || mongoose.model('User', userSchema);
+const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
+
+// Root and Admin HTML file routes
+app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
-// Admin HTML file route
-aapp.get('/admin.html', (req, res) => {
+app.get('/admin.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
-ffunction getVipLevel(balance) {
+function getVipLevel(balance) {
     if (balance >= 4000) return "VIP 10";
     if (balance >= 3000) return "VIP 9";
     if (balance >= 2500) return "VIP 8";
@@ -130,4 +134,4 @@ app.post('/api/admin/withdrawal/update', async (req, res) => {
     }
 });
 
-app.listen(5000, () => console.log('Server running on port 5000'));
+module.exports = app;
