@@ -88,16 +88,26 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-// User Login Route
+// User Login Route (Updated to properly catch username, email, or input)
 app.post('/api/login', async (req, res) => {
     try {
         await connectDB();
-        const { input, password } = req.body;
+        const { input, username, email, password } = req.body;
+        const loginIdentifier = input || username || email;
+
+        if (!loginIdentifier || !password) {
+            return res.status(400).json({ success: false, message: 'Please provide username/email and password' });
+        }
+
+        // Find user by username or email (case-insensitive search)
         const user = await User.findOne({ 
-            $or: [{ username: input }, { email: input }] 
+            $or: [
+                { username: { $regex: new RegExp(`^${loginIdentifier.trim()}$`, 'i') } }, 
+                { email: { $regex: new RegExp(`^${loginIdentifier.trim()}$`, 'i') } }
+            ] 
         });
 
-        if (!user || user.password !== password) {
+        if (!user || user.password !== password.trim()) {
             return res.status(400).json({ success: false, message: 'Invalid credentials' });
         }
 
