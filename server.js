@@ -177,15 +177,18 @@ app.post('/api/admin/transaction/update', async (req, res) => {
         await connectDB();
         const { reqId, status } = req.body;
         const tx = await Transaction.findById(reqId);
-        if (!tx) return res.status(404).json({ success: false });
-        tx.status = status;
-        await tx.save();
-        if (status === 'Approved' && tx.type === 'deposit') {
+        if (!tx) return res.status(404).json({ success: false, message: "Transaction nahi mili" });
+
+        // Agar pehle approved nahi tha aur ab approve ho raha hai aur type deposit hai
+        if (tx.status !== 'Approved' && status === 'Approved' && tx.type === 'deposit') {
             await User.findOneAndUpdate({ username: tx.username }, { $inc: { balance: tx.amount } });
         }
-        res.json({ success: true });
+
+        tx.status = status;
+        await tx.save();
+        res.json({ success: true, message: "Transaction status update ho gaya" });
     } catch (err) {
-        res.status(500).json({ error: 'Update failed' });
+        res.status(500).json({ success: false, error: 'Update failed: ' + err.message });
     }
 });
 
