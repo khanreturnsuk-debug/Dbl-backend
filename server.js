@@ -193,3 +193,42 @@ app.get('/admin', (req, res) => {
 });
 
 app.listen(5000, () => console.log('Server running on port 5000'));
+// ایڈمن کے لیے تمام یوزرز اور ان کا ڈیٹا حاصل کرنے کی API
+app.get('/api/admin/users', async (req, res) => {
+    try {
+        const users = await usersDB.find({});
+        const formattedUsers = users.map(user => {
+            const balance = user.balance || 0;
+            return {
+                id: user._id,
+                username: user.username || user.phone || 'Unknown',
+                vipLevel: getVipLevel(balance),
+                referral: user.referredBy || 'None'
+            };
+        });
+        res.json(formattedUsers);
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// ایڈمن کے لیے تمام ودڈراول ریکوئسٹس حاصل کرنے کی API
+app.get('/api/admin/withdrawals', async (req, res) => {
+    try {
+        const withdrawals = await txDB.find({ type: 'withdrawal' });
+        res.json(withdrawals);
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// ودڈراول کو ایکسیپٹ یا ریجیکٹ کرنے کی API
+app.post('/api/admin/withdrawal/update', async (req, res) => {
+    const { reqId, status } = req.body;
+    try {
+        await txDB.update({ _id: reqId }, { $set: { status: status } });
+        res.json({ success: true, message: 'Status updated successfully' });
+    } catch (err) {
+        res.status(500).json({ error: 'Update failed' });
+    }
+});
