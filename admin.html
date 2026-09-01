@@ -125,9 +125,12 @@
     </div>
 
     <script>
+        // Yahan apna asal backend ka URL daal dein (Agar koi aur live URL ho toh us se replace kar lein)
+        const backendUrl = 'https://dbl-backend.vercel.app';
+
         async function adminLogin() {
             const password = document.getElementById('admin-pass').value;
-            const res = await fetch('/api/admin/login', {
+            const res = await fetch(`${backendUrl}/api/admin/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ password })
@@ -156,7 +159,7 @@
 
         async function loadData(tab) {
             if (tab === 'users' || tab === 'privacy') {
-                const res = await fetch('/api/admin/users');
+                const res = await fetch(`${backendUrl}/api/admin/users`);
                 const users = await res.json();
                 
                 if (tab === 'users') {
@@ -175,7 +178,7 @@
                     `).join('');
                 }
             } else if (tab === 'withdrawals') {
-                const res = await fetch('/api/admin/withdrawals');
+                const res = await fetch(`${backendUrl}/api/admin/withdrawals`);
                 const data = await res.json();
                 const tbody = document.getElementById('withdrawals-table-body');
                 tbody.innerHTML = data.map(item => `
@@ -190,7 +193,7 @@
                     </tr>
                 `).join('');
             } else if (tab === 'deposits') {
-                const res = await fetch('/api/admin/deposits');
+                const res = await fetch(`${backendUrl}/api/admin/deposits`);
                 const data = await res.json();
                 const tbody = document.getElementById('deposits-table-body');
                 tbody.innerHTML = data.map(item => `
@@ -214,7 +217,7 @@
 
             if (!newUsername || !newEmail || !newPassword) return;
 
-            const res = await fetch('/api/admin/user/update', {
+            const res = await fetch(`${backendUrl}/api/admin/user/update`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId, username: newUsername, email: newEmail, password: newPassword })
@@ -229,21 +232,27 @@
         }
 
         async function updateStatus(reqId, status) {
-            const res = await fetch('/api/admin/transaction/update', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ reqId, status })
-            });
-            const result = await res.json();
-            if (result.success) {
-                alert('Status updated successfully!');
-                location.reload();
+            try {
+                const res = await fetch(`${backendUrl}/api/admin/transaction/update`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reqId, status })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    alert('Status updated successfully!');
+                    location.reload();
+                } else {
+                    alert('Error: ' + (result.message || result.error));
+                }
+            } catch (err) {
+                alert('Network or server error: ' + err.message);
             }
         }
 
         async function updateAnnouncement() {
             const text = document.getElementById('announcement-input').value;
-            const res = await fetch('/api/admin/announcement/update', {
+            const res = await fetch(`${backendUrl}/api/admin/announcement/update`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text })
