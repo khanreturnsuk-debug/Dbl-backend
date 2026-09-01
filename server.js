@@ -10,11 +10,18 @@ app.use(cors());
 // MongoDB Atlas Connection URI
 const MONGO_URI = 'mongodb+srv://khanreturnsuk_db_user:admin12345@cluster0.irfj6ne.mongodb.net/dbl_database?appName=Cluster0';
 
-// Prevent multiple connections in serverless environment
-if (mongoose.connection.readyState === 0) {
-    mongoose.connect(MONGO_URI)
-        .then(() => console.log('MongoDB Connected Successfully!'))
-        .catch(err => console.log('MongoDB Connection Error:', err));
+// Serverless Connection Handler for Vercel
+let cachedDb = null;
+
+async function connectDB() {
+    if (mongoose.connection.readyState >= 1) {
+        return;
+    }
+    if (!cachedDb) {
+        cachedDb = await mongoose.connect(MONGO_URI, {
+            bufferCommands: false,
+        });
+    }
 }
 
 // Mongoose Schemas & Models
@@ -68,6 +75,7 @@ function getVipLevel(balance) {
 // User Registration Route
 app.post('/api/register', async (req, res) => {
     try {
+        await connectDB();
         const { fullName, username, email, phone, password } = req.body;
         const existing = await User.findOne({ username });
         if (existing) return res.status(400).json({ success: false, message: 'Username already exists' });
@@ -83,6 +91,7 @@ app.post('/api/register', async (req, res) => {
 // User Login Route
 app.post('/api/login', async (req, res) => {
     try {
+        await connectDB();
         const { input, password } = req.body;
         const user = await User.findOne({ 
             $or: [{ username: input }, { email: input }] 
@@ -101,6 +110,7 @@ app.post('/api/login', async (req, res) => {
 // Transaction Route
 app.post('/api/transaction', async (req, res) => {
     try {
+        await connectDB();
         const { username, type, amount, method, accountDetails } = req.body;
         const newTx = new Transaction({
             username, type, amount: Number(amount), method, accountDetails
@@ -115,6 +125,7 @@ app.post('/api/transaction', async (req, res) => {
 // Admin API: Get all registered users
 app.get('/api/admin/users', async (req, res) => {
     try {
+        await connectDB();
         const users = await User.find({});
         const formattedUsers = users.map(user => {
             const balance = user.balance || 100;
@@ -134,6 +145,7 @@ app.get('/api/admin/users', async (req, res) => {
 // Admin API: Get all withdrawals
 app.get('/api/admin/withdrawals', async (req, res) => {
     try {
+        await connectDB();
         const withdrawals = await Transaction.find({ type: 'withdrawal' });
         res.json(withdrawals);
     } catch (err) {
@@ -143,8 +155,9 @@ app.get('/api/admin/withdrawals', async (req, res) => {
 
 // Admin API: Update withdrawal status
 app.post('/api/admin/withdrawal/update', async (req, res) => {
-    const { reqId, status } = req.body;
     try {
+        await connectDB();
+        const { reqId, status } = req.body;
         await Transaction.findByIdAndUpdate(reqId, { status: status });
         res.json({ success: true, message: 'Status updated successfully' });
     } catch (err) {
