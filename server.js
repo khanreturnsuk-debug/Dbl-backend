@@ -5,6 +5,10 @@ const Datastore = require('nedb-promises');
 const app = express();
 app.use(express.json());
 app.use(cors());
+const path = require('path');
+app.get('/admin.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'admin.html'));
+});
 
 const usersDB = Datastore.create({ filename: 'users.db', autoload: true });
 const txDB = Datastore.create({ filename: 'transactions.db', autoload: true });
