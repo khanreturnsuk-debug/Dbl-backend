@@ -146,7 +146,7 @@ app.post('/api/admin/user/update', async (req, res) => {
         await connectDB();
         const { userId, username, email, password } = req.body;
         await User.findByIdAndUpdate(userId, { username, email, password });
-        res.json({ success: true, message: 'User updated successfully' });
+        res.json({ success: { success: true }, message: 'User updated successfully' });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -179,8 +179,11 @@ app.post('/api/admin/transaction/update', async (req, res) => {
         const tx = await Transaction.findById(reqId);
         if (!tx) return res.status(404).json({ success: false, message: "Transaction nahi mili" });
 
-        // Agar status "Approved" kiya ja raha hai aur yeh deposit hai toh balance lazmi barhega
-        if (status === 'Approved' && tx.type === 'deposit') {
+        const normalizedStatus = status ? status.toLowerCase() : '';
+        const normalizedType = tx.type ? tx.type.toLowerCase() : '';
+
+        // Case-insensitive check for status and deposit type
+        if ((normalizedStatus === 'approved' || normalizedStatus === 'approve') && normalizedType === 'deposit') {
             const updatedUser = await User.findOneAndUpdate(
                 { username: { $regex: new RegExp(`^${tx.username}$`, 'i') } }, 
                 { $inc: { balance: Number(tx.amount) } },
@@ -188,7 +191,7 @@ app.post('/api/admin/transaction/update', async (req, res) => {
             );
             
             if (!updatedUser) {
-                return res.status(404).json({ success: false, message: "Transaction ka user database mein nahi mila!" });
+                return res.status(404).json({ success: false, message: `User '${tx.username}' database mein nahi mila!` });
             }
         }
 
