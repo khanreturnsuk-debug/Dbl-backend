@@ -8,7 +8,7 @@ app.use(express.json());
 app.use(cors());
 
 // MongoDB Atlas Connection URI
-const MONGO_URI = const MONGO_URI = 'mongodb+srv://khanreturnsuk_db_user:admin12345@cluster0.irfj6ne.mongodb.net/?appName=Cluster0';
+const MONGO_URI = 'mongodb+srv://khanreturnsuk_db_user:admin12345@cluster0.irfj6ne.mongodb.net/?appName=Cluster0';
 
 // Prevent multiple connections in serverless environment
 if (mongoose.connection.readyState === 0) {
