@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login & Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .login-box { max-width: 400px; margin: 100px auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); text-align: center; }
+        .login-box input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .login-box button { width: 100%; padding: 10px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .error-msg { color: red; font-size: 14px; display: none; margin-top: 10px; }
+        h2 { color: #333; border-bottom: 2px solid #ddd; padding-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; border: 1px solid #ddd; text-align: left; }
+        th { background-color: #007bff; color: white; }
+        .btn-accept { background-color: #28a745; color: white; border: none; padding: 6px 12px; cursor: pointer; border-radius: 4px; }
+        .btn-reject { background-color: #dc3545; color: white; border: none; padding: 6px 12px; cursor: pointer; border-radius: 4px; }
+        .status-approved { color: green; font-weight: bold; }
+        .status-rejected { color: red; font-weight: bold; }
+        .status-pending { color: orange; font-weight: bold; }
+        #dashboardSection { display: none; }
+    </style>
+</head>
+<body>
+
+<!-- Login Section -->
+<div id="loginSection" class="login-box">
+    <h2>Admin Login</h2>
+    <input type="text" id="adminUser" placeholder="Admin Username">
+    <input type="password" id="adminPass" placeholder="Admin Password">
+    <button onclick="checkLogin()">Login</button>
+    <div id="errorMsg" class="error-msg">غلط یوزر نیم یا پاس ورڈ!</div>
+</div>
+
+<!-- Main Dashboard Section -->
+<div id="dashboardSection" class="container">
+    <h2>Admin Dashboard - User & Withdrawal Management</h2>
+
+    <h3>Users Information & Referrals</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>User ID</th>
+                <th>Username</th>
+                <th>VIP Level</th>
+                <th>Referred By / Referrals</th>
+            </tr>
+        </thead>
+        <tbody id="usersTableBody"></tbody>
+    </table>
+
+    <h3 style="margin-top: 40px;">Withdrawal Requests</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Request ID</th>
+                <th>User ID</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody id="withdrawalTableBody"></tbody>
+    </table>
+</div>
+
+<script>
+    // یہاں آپ اپنا مخصوص ایڈمن یوزر نیم اور پاس ورڈ سیٹ کر سکتے ہیں
+    const correctAdminUser = "admin";
+    const correctAdminPass = "12345";
+
+    function checkLogin() {
+        const userInput = document.getElementById('adminUser').value;
+        const passInput = document.getElementById('adminPass').value;
+        const errorMsg = document.getElementById('errorMsg');
+
+        if (userInput === correctAdminUser && passInput === correctAdminPass) {
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('dashboardSection').style.display = 'block';
+            loadDashboardData();
+        } else {
+            errorMsg.style.display = 'block';
+        }
+    }
+
+    const mockUsers = [
+        { id: 1, username: 'ali_khan', vipLevel: 'VIP 2', referral: 'Ahmad (Invited by Ali)' },
+        { id: 2, username: 'sara_99', vipLevel: 'VIP 1', referral: 'None' }
+    ];
+
+    const mockWithdrawals = [
+        { reqId: 101, userId: 1, amount: '$50', status: 'Pending' },
+        { reqId: 102, userId: 2, amount: '$20', status: 'Pending' }
+    ];
+
+    function loadDashboardData() {
+        const userTable = document.getElementById('usersTableBody');
+        userTable.innerHTML = '';
+        mockUsers.forEach(user => {
+            userTable.innerHTML += `
+                <tr>
+                    <td>${user.id}</td>
+                    <td>${user.username}</td>
+                    <td>${user.vipLevel}</td>
+                    <td>${user.referral}</td>
+                </tr>
+            `;
+        });
+
+        const withdrawalTable = document.getElementById('withdrawalTableBody');
+        withdrawalTable.innerHTML = '';
+        mockWithdrawals.forEach(item => {
+            let statusClass = 'status-pending';
+            if (item.status === 'Approved') statusClass = 'status-approved';
+            if (item.status === 'Rejected') statusClass = 'status-rejected';
+
+            withdrawalTable.innerHTML += `
+                <tr>
+                    <td>${item.reqId}</td>
+                    <td>${item.userId}</td>
+                    <td>${item.amount}</td>
+                    <td><span class="${statusClass}" id="status-${item.reqId}">${item.status}</span></td>
+                    <td>
+                        <button class="btn-accept" onclick="updateWithdrawal(${item.reqId}, 'Approved')">Accept</button>
+                        <button class="btn-reject" onclick="updateWithdrawal(${item.reqId}, 'Rejected')">Reject</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    function updateWithdrawal(reqId, newStatus) {
+        const statusSpan = document.getElementById(`status-${reqId}`);
+        statusSpan.innerText = newStatus;
+        statusSpan.className = newStatus === 'Approved' ? 'status-approved' : 'status-rejected';
+    }
+</script>
+
+</body>
+</html>
