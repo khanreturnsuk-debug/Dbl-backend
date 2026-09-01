@@ -39,13 +39,16 @@ const transactionSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', userSchema);
 const Transaction = mongoose.model('Transaction', transactionSchema);
-
-// Admin HTML file route
-app.get('/admin.html', (req, res) => {
+aapp.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
-function getVipLevel(balance) {
+// Admin HTML file route
+aapp.get('/admin.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'admin.html'));
+});
+
+ffunction getVipLevel(balance) {
     if (balance >= 4000) return "VIP 10";
     if (balance >= 3000) return "VIP 9";
     if (balance >= 2500) return "VIP 8";
