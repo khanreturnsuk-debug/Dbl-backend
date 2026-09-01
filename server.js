@@ -32,6 +32,8 @@ const transactionSchema = new mongoose.Schema({
     username: String,
     type: String, 
     amount: Number,
+    tax: { type: Number, default: 0 },
+    netAmount: { type: Number, default: 0 },
     method: String,
     accountDetails: String,
     status: { type: String, default: 'Pending' },
@@ -77,7 +79,6 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
     try {
         await connectDB();
-        // Sab possible field names ko handle karne ke liye
         const loginIdentifier = req.body.input || req.body.username || req.body.email || req.body.identifier;
         const password = req.body.password;
 
@@ -101,31 +102,73 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
+// Minimum Withdrawal Limit & 17% Tax Calculation
 app.post('/api/withdraw', async (req, res) => {
     try {
         await connectDB();
         const { username, method, accountNumber, accountName, amount } = req.body;
-        const newTx = new Transaction({ username, type: 'withdrawal', amount: Number(amount), method, accountDetails: `${accountNumber} (${accountName})`, status: 'Pending' });
+        const withdrawAmount = Number(amount);
+
+        if (withdrawAmount < 90) {
+            return res.status(400).json({ success: false, message: 'Minimum withdrawal amount is $90' });
+        }
+
+        // Check user balance
+        const user = await User.findOne({ username: { $regex: new RegExp(`^${username}$`, 'i') } });
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+        if (user.balance < withdrawAmount) {
+            return res.status(400).json({ success: false, message: 'Insufficient balance' });
+        }
+
+        const tax = withdrawAmount * 0.17;
+        const netAmount = withdrawAmount - tax;
+
+        const newTx = new Transaction({ 
+            username, 
+            type: 'withdrawal', 
+            amount: withdrawAmount, 
+            tax: tax,
+            netAmount: netAmount,
+            method, 
+            accountDetails: `${accountNumber} (${accountName})`, 
+            status: 'Pending' 
+        });
         await newTx.save();
-        res.json({ success: true, message: 'Withdrawal requested' });
+        res.json({ success: true, message: 'Withdrawal requested successfully' });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
 });
 
+// Minimum Deposit Limit ($100)
 app.post('/api/deposit', async (req, res) => {
     try {
         await connectDB();
         const { username, method, sender, amount } = req.body;
-        const newTx = new Transaction({ username, type: 'deposit', amount: Number(amount), method, accountDetails: `Sender: ${sender}`, status: 'Pending' });
+        const depositAmount = Number(amount);
+
+        if (depositAmount < 100) {
+            return res.status(400).json({ success: false, message: 'Minimum deposit amount is $100' });
+        }
+
+        const newTx = new Transaction({ 
+            username, 
+            type: 'deposit', 
+            amount: depositAmount, 
+            netAmount: depositAmount,
+            method, 
+            accountDetails: `Sender: ${sender}`, 
+            status: 'Pending' 
+        });
         await newTx.save();
-        res.json({ success: true, message: 'Deposit requested' });
+        res.json({ success: true, message: 'Deposit requested successfully' });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
 });
 
-// User Transaction History Route (Deposits & Withdrawals)
+// User Transaction History Route
 app.get('/api/transactions/:username', async (req, res) => {
     try {
         await connectDB();
@@ -189,11 +232,24 @@ app.post('/api/admin/transaction/update', async (req, res) => {
         const normalizedStatus = status ? status.toLowerCase() : '';
         const normalizedType = tx.type ? tx.type.toLowerCase() : '';
 
-        // Har baar jab status Approved kiya jaye ga, balance user mein add hojaye ga
-        if ((normalizedStatus === 'approved' || normalizedStatus === 'approve') && normalizedType === 'deposit') {
+        // Deposit Approve hone par balance add hoga
+        if ((normalizedStatus === 'approved' || normalizedStatus === 'approve') && normalizedType === 'deposit' && tx.status !== 'Approved') {
             const updatedUser = await User.findOneAndUpdate(
                 { username: { $regex: new RegExp(`^${tx.username}$`, 'i') } }, 
                 { $inc: { balance: Number(tx.amount) } },
+                { new: true }
+            );
+            
+            if (!updatedUser) {
+                return res.status(404).json({ success: false, message: `User '${tx.username}' database mein nahi mila!` });
+            }
+        }
+
+        // Withdrawal Approve hone par user ke balance se amount deduct hogi
+        if ((normalizedStatus === 'approved' || normalizedStatus === 'approve') && normalizedType === 'withdrawal' && tx.status !== 'Approved') {
+            const updatedUser = await User.findOneAndUpdate(
+                { username: { $regex: new RegExp(`^${tx.username}$`, 'i') } }, 
+                { $inc: { balance: -Number(tx.amount) } },
                 { new: true }
             );
             
