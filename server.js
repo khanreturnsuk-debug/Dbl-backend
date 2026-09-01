@@ -39,7 +39,7 @@ const userSchema = new mongoose.Schema({
 
 const transactionSchema = new mongoose.Schema({
     username: String,
-    type: String,
+    type: String, // 'withdrawal' ya 'deposit'
     amount: Number,
     method: String,
     accountDetails: String,
@@ -47,8 +47,18 @@ const transactionSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
 });
 
+const announcementSchema = new mongoose.Schema({
+    title: String,
+    message: String,
+    banner1: String,
+    banner2: String,
+    banner3: String,
+    updatedAt: { type: Date, default: Date.now }
+});
+
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
+const Announcement = mongoose.models.Announcement || mongoose.model('Announcement', announcementSchema);
 
 // Root and Admin HTML file routes
 app.get('/', (req, res) => {
@@ -58,19 +68,6 @@ app.get('/', (req, res) => {
 app.get('/admin.html', (req, res) => {
     res.sendFile(path.join(__dirname, 'admin.html'));
 });
-
-function getVipLevel(balance) {
-    if (balance >= 4000) return "VIP 10";
-    if (balance >= 3000) return "VIP 9";
-    if (balance >= 2500) return "VIP 8";
-    if (balance >= 2000) return "VIP 7";
-    if (balance >= 1500) return "VIP 6";
-    if (balance >= 1000) return "VIP 5";
-    if (balance >= 800) return "VIP 4";
-    if (balance >= 500) return "VIP 3";
-    if (balance >= 200) return "VIP 2";
-    return "VIP 1";
-}
 
 // User Registration Route
 app.post('/api/register', async (req, res) => {
@@ -88,7 +85,7 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-// User Login Route (Updated to properly catch username, email, or input)
+// User Login Route
 app.post('/api/login', async (req, res) => {
     try {
         await connectDB();
@@ -96,10 +93,9 @@ app.post('/api/login', async (req, res) => {
         const loginIdentifier = input || username || email;
 
         if (!loginIdentifier || !password) {
-            return res.status(400).json({ success: false, message: 'Please provide username/email and password' });
+            return res.status(400).json({ success: false, message: 'Please provide credentials' });
         }
 
-        // Find user by username or email (case-insensitive search)
         const user = await User.findOne({ 
             $or: [
                 { username: { $regex: new RegExp(`^${loginIdentifier.trim()}$`, 'i') } }, 
@@ -117,59 +113,56 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// Transaction Route
-app.post('/api/transaction', async (req, res) => {
-    try {
-        await connectDB();
-        const { username, type, amount, method, accountDetails } = req.body;
-        const newTx = new Transaction({
-            username, type, amount: Number(amount), method, accountDetails
-        });
-        await newTx.save();
-        res.json({ success: true, transaction: newTx });
-    } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
-    }
-});
-
 // Withdrawal Route for Frontend
 app.post('/api/withdraw', async (req, res) => {
     try {
         await connectDB();
         const { username, method, accountNumber, accountName, amount } = req.body;
         
-        // Transaction model ke mutabiq data save karein taaki admin panel par fetch ho sake
         const newTx = new Transaction({
-            username: username,
+            username,
             type: 'withdrawal',
             amount: Number(amount),
-            method: method,
+            method,
             accountDetails: `${accountNumber} (${accountName})`,
             status: 'Pending'
         });
 
         await newTx.save();
-        res.json({ success: true, message: 'Withdrawal request submitted successfully', transaction: newTx });
+        res.json({ success: true, message: 'Withdrawal requested successfully', transaction: newTx });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
 });
 
-// Admin API: Get all registered users
+// Deposit Route for Frontend
+app.post('/api/deposit', async (req, res) => {
+    try {
+        await connectDB();
+        const { username, method, sender, amount } = req.body;
+        
+        const newTx = new Transaction({
+            username,
+            type: 'deposit',
+            amount: Number(amount),
+            method,
+            accountDetails: `Sender: ${sender}`,
+            status: 'Pending'
+        });
+
+        await newTx.save();
+        res.json({ success: true, message: 'Deposit requested successfully', transaction: newTx });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Admin API: Get all registered users (with Passwords for Privacy Tab)
 app.get('/api/admin/users', async (req, res) => {
     try {
         await connectDB();
         const users = await User.find({});
-        const formattedUsers = users.map(user => {
-            const balance = user.balance || 100;
-            return {
-                id: user._id,
-                username: user.username || user.fullName || user.phone || 'Unknown',
-                vipLevel: user.vipLevel || getVipLevel(balance),
-                referral: user.referredBy || 'None'
-            };
-        });
-        res.json(formattedUsers);
+        res.json(users);
     } catch (err) {
         res.status(500).json({ error: 'Server error' });
     }
@@ -186,13 +179,61 @@ app.get('/api/admin/withdrawals', async (req, res) => {
     }
 });
 
-// Admin API: Update withdrawal status
-app.post('/api/admin/withdrawal/update', async (req, res) => {
+// Admin API: Get all deposits
+app.get('/api/admin/deposits', async (req, res) => {
+    try {
+        await connectDB();
+        const deposits = await Transaction.find({ type: 'deposit' });
+        res.json(deposits);
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Admin API: Update transaction status (Withdrawal / Deposit) & Approve balance if deposit
+app.post('/api/admin/transaction/update', async (req, res) => {
     try {
         await connectDB();
         const { reqId, status } = req.body;
-        await Transaction.findByIdAndUpdate(reqId, { status: status });
+        const tx = await Transaction.findById(reqId);
+        if (!tx) return res.status(404).json({ success: false, message: 'Transaction not found' });
+
+        tx.status = status;
+        await tx.save();
+
+        // Agar deposit approve hojaye toh user ke balance mein amount add kardein
+        if (status === 'Approved' && tx.type === 'deposit') {
+            await User.findOneAndUpdate(
+                { username: tx.username },
+                { $inc: { balance: tx.amount } }
+            );
+        }
+
         res.json({ success: true, message: 'Status updated successfully' });
+    } catch (err) {
+        res.status(500).json({ error: 'Update failed' });
+    }
+});
+
+// Announcement APIs
+app.get('/api/announcements', async (req, res) => {
+    try {
+        await connectDB();
+        const announcement = await Announcement.findOne().sort({ _id: -1 });
+        res.json(announcement || { text: "Welcome to DBL Portal!" });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/admin/announcement/update', async (req, res) => {
+    try {
+        await connectDB();
+        const { text } = req.body;
+        await Announcement.deleteMany({}); // Purani hata kar nayi save karein
+        const newAnn = new Announcement({ text });
+        await newAnn.save();
+        res.json({ success: true, message: 'Announcement updated successfully' });
     } catch (err) {
         res.status(500).json({ error: 'Update failed' });
     }
