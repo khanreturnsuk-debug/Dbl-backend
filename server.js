@@ -132,6 +132,29 @@ app.post('/api/transaction', async (req, res) => {
     }
 });
 
+// Withdrawal Route for Frontend
+app.post('/api/withdraw', async (req, res) => {
+    try {
+        await connectDB();
+        const { username, method, accountNumber, accountName, amount } = req.body;
+        
+        // Transaction model ke mutabiq data save karein taaki admin panel par fetch ho sake
+        const newTx = new Transaction({
+            username: username,
+            type: 'withdrawal',
+            amount: Number(amount),
+            method: method,
+            accountDetails: `${accountNumber} (${accountName})`,
+            status: 'Pending'
+        });
+
+        await newTx.save();
+        res.json({ success: true, message: 'Withdrawal request submitted successfully', transaction: newTx });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 // Admin API: Get all registered users
 app.get('/api/admin/users', async (req, res) => {
     try {
