@@ -79,6 +79,15 @@ app.post('/api/register', async (req, res) => {
         res.status(500).json({ success: false, message: err.message });
     }
 });
+// Admin Route to Get All Users
+app.get('/api/admin/users', async (req, res) => {
+    try {
+        const users = await User.find({});
+        res.json(users);
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
 
 // Transaction Route
 app.post('/api/transaction', async (req, res) => {
