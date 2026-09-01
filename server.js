@@ -79,11 +79,20 @@ app.post('/api/register', async (req, res) => {
         res.status(500).json({ success: false, message: err.message });
     }
 });
-// Admin Route to Get All Users
-app.get('/api/admin/users', async (req, res) => {
+
+// User Login Route
+app.post('/api/login', async (req, res) => {
     try {
-        const users = await User.find({});
-        res.json(users);
+        const { input, password } = req.body;
+        const user = await User.findOne({ 
+            $or: [{ username: input }, { email: input }] 
+        });
+
+        if (!user || user.password !== password) {
+            return res.status(400).json({ success: false, message: 'Invalid credentials' });
+        }
+
+        res.status(200).json({ success: true, user });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
