@@ -3,170 +3,197 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard - Real Database</title>
+    <title>DBL Admin Dashboard</title>
     <style>
-        body { font-family: Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; }
-        .container { max-width: 1200px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-        .login-box { max-width: 400px; margin: 100px auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); text-align: center; }
-        .login-box input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-        .login-box button { width: 100%; padding: 10px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
-        .error-msg { color: red; font-size: 14px; display: none; margin-top: 10px; }
-        h2 { color: #333; border-bottom: 2px solid #ddd; padding-bottom: 10px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 12px; border: 1px solid #ddd; text-align: left; }
-        th { background-color: #007bff; color: white; }
-        .btn-accept { background-color: #28a745; color: white; border: none; padding: 6px 12px; cursor: pointer; border-radius: 4px; }
-        .btn-reject { background-color: #dc3545; color: white; border: none; padding: 6px 12px; cursor: pointer; border-radius: 4px; }
-        .status-approved { color: green; font-weight: bold; }
-        .status-rejected { color: red; font-weight: bold; }
-        .status-pending { color: orange; font-weight: bold; }
-        #dashboardSection { display: none; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+        body { background: #0d1117; color: #fff; padding: 15px; }
+        .header { display: flex; justify-content: space-between; align-items: center; background: #21262d; padding: 15px; border-radius: 8px; margin-bottom: 20px; position: relative; }
+        .menu-dots { font-size: 24px; cursor: pointer; background: none; border: none; color: #fff; }
+        .dropdown-menu { display: none; position: absolute; right: 15px; top: 60px; background: #161b22; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; z-index: 100; width: 200px; }
+        .dropdown-menu button { width: 100%; padding: 12px; text-align: left; background: none; border: none; color: #fff; cursor: pointer; border-bottom: 1px solid #30363d; font-size: 14px; }
+        .dropdown-menu button:hover { background: #21262d; color: #2ea043; }
+        .section { display: none; }
+        .section.active { display: block; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; background: #161b22; }
+        th, td { border: 1px solid #30363d; padding: 10px; text-align: left; }
+        th { background: #21262d; color: #2ea043; }
+        .btn-approve { background: #2ea043; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+        .btn-reject { background: #f85149; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+        .form-control { width: 100%; padding: 10px; background: #0d1117; border: 1px solid #30363d; color: #fff; border-radius: 6px; margin-bottom: 10px; }
+        .action-btn { background: #2ea043; color: #fff; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
 
-<!-- Login Section -->
-<div id="loginSection" class="login-box">
-    <h2>Admin Login</h2>
-    <input type="text" id="adminUser" placeholder="Admin Username">
-    <input type="password" id="adminPass" placeholder="Admin Password">
-    <button onclick="checkLogin()">Login</button>
-    <div id="errorMsg" class="error-msg">غلط یوزر نیم یا پاس ورڈ!</div>
-</div>
+    <div class="header">
+        <h2>DBL Admin Panel</h2>
+        <button class="menu-dots" onclick="toggleMenu()">⋮</button>
+        <div class="dropdown-menu" id="adminMenu">
+            <button onclick="switchTab('users')">👥 Users Info</button>
+            <button onclick="switchTab('withdrawals')">💸 Withdrawals</button>
+            <button onclick="switchTab('deposits')">💳 Deposits</button>
+            <button onclick="switchTab('privacy')">🔒 Users Passwords</button>
+            <button onclick="switchTab('announcements')">📢 Announcements</button>
+        </div>
+    </div>
 
-<!-- Main Dashboard Section -->
-<div id="dashboardSection" class="container">
-    <h2>Admin Dashboard - Real Database Management</h2>
+    <div id="tab-users" class="section active">
+        <h3>Registered Users</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Full Name</th>
+                    <th>Balance</th>
+                    <th>VIP Level</th>
+                </tr>
+            </thead>
+            <tbody id="users-table-body"></tbody>
+        </table>
+    </div>
 
-    <h3>Users Information & Referrals</h3>
-    <table>
-        <thead>
-            <tr>
-                <th>User ID</th>
-                <th>Username</th>
-                <th>VIP Level</th>
-                <th>Referred By / Referrals</th>
-            </tr>
-        </thead>
-        <tbody id="usersTableBody">
-            <!-- Data from server -->
-        </tbody>
-    </table>
+    <div id="tab-withdrawals" class="section">
+        <h3>Withdrawal Requests</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Method & Details</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="withdrawals-table-body"></tbody>
+        </table>
+    </div>
 
-    <h3 style="margin-top: 40px;">Withdrawal Requests</h3>
-    <table>
-        <thead>
-            <tr>
-                <th>Request ID</th>
-                <th>User ID</th>
-                <th>Amount</th>
-                <th>Status</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-        <tbody id="withdrawalTableBody">
-            <!-- Data from server -->
-        </tbody>
-    </table>
-</div>
+    <div id="tab-deposits" class="section">
+        <h3>Deposit Requests</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Method & Details</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="deposits-table-body"></tbody>
+        </table>
+    </div>
 
-<script>
-    const correctAdminUser = "admin";
-    const correctAdminPass = "12345";
+    <div id="tab-privacy" class="section">
+        <h3>Users Passwords & Credentials</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Password</th>
+                </tr>
+            </thead>
+            <tbody id="privacy-table-body"></tbody>
+        </table>
+    </div>
 
-    function checkLogin() {
-        const userInput = document.getElementById('adminUser').value;
-        const passInput = document.getElementById('adminPass').value;
-        const errorMsg = document.getElementById('errorMsg');
+    <div id="tab-announcements" class="section">
+        <h3>Update App Announcement</h3>
+        <textarea id="announcement-input" class="form-control" rows="5" placeholder="Enter new announcement text..."></textarea>
+        <button class="action-btn" onclick="updateAnnouncement()">Save Announcement</button>
+    </div>
 
-        if (userInput === correctAdminUser && passInput === correctAdminPass) {
-            document.getElementById('loginSection').style.display = 'none';
-            document.getElementById('dashboardSection').style.display = 'block';
-            loadRealDashboardData();
-        } else {
-            errorMsg.style.display = 'block';
+    <script>
+        function toggleMenu() {
+            const menu = document.getElementById('adminMenu');
+            menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
         }
-    }
 
-    async function loadRealDashboardData() {
-        try {
-            // Fetch users from backend API
-            const userRes = await fetch('/api/admin/users');
-            const users = await userRes.json();
-            
-            const userTable = document.getElementById('usersTableBody');
-            userTable.innerHTML = '';
-            
-            if (users.length === 0) {
-                userTable.innerHTML = `<tr><td colspan="4" style="text-align:center;">کوئی یوزر موجود نہیں ہے</td></tr>`;
-            } else {
-                users.forEach(user => {
-                    userTable.innerHTML += `
-                        <tr>
-                            <td>${user.id}</td>
-                            <td>${user.username}</td>
-                            <td>${user.vipLevel}</td>
-                            <td>${user.referral}</td>
-                        </tr>
-                    `;
-                });
-            }
-
-            // Fetch withdrawals from backend API
-            const txRes = await fetch('/api/admin/withdrawals');
-            const withdrawals = await txRes.json();
-
-            const withdrawalTable = document.getElementById('withdrawalTableBody');
-            withdrawalTable.innerHTML = '';
-
-            if (withdrawals.length === 0) {
-                withdrawalTable.innerHTML = `<tr><td colspan="5" style="text-align:center;">کوئی ودڈراول ریکوئسٹ موجود نہیں ہے</td></tr>`;
-            } else {
-                withdrawals.forEach(item => {
-                    let statusClass = 'status-pending';
-                    if (item.status === 'Approved') statusClass = 'status-approved';
-                    if (item.status === 'Rejected') statusClass = 'status-rejected';
-
-                    withdrawalTable.innerHTML += `
-                        <tr>
-                            <td>${item._id}</td>
-                            <td>${item.userId || 'N/A'}</td>
-                            <td>$${item.amount || 0}</td>
-                            <td><span class="${statusClass}" id="status-${item._id}">${item.status || 'Pending'}</span></td>
-                            <td>
-                                <button class="btn-accept" onclick="updateWithdrawal('${item._id}', 'Approved')">Accept</button>
-                                <button class="btn-reject" onclick="updateWithdrawal('${item._id}', 'Rejected')">Reject</button>
-                            </td>
-                        </tr>
-                    `;
-                });
-            }
-        } catch (err) {
-            console.error('Error loading data:', err);
+        function switchTab(tabId) {
+            document.querySelectorAll('.section').forEach(sec => sec.classList.remove('active'));
+            document.getElementById(`tab-${tabId}`).classList.add('active');
+            toggleMenu();
+            loadData(tabId);
         }
-    }
 
-    async function updateWithdrawal(reqId, newStatus) {
-        try {
-            const response = await fetch('/api/admin/withdrawal/update', {
+        async function loadData(tab) {
+            if (tab === 'users' || tab === 'privacy') {
+                const res = await fetch('/api/admin/users');
+                const users = await res.json();
+                
+                if (tab === 'users') {
+                    const tbody = document.getElementById('users-table-body');
+                    tbody.innerHTML = users.map(u => `<tr><td>${u.username}</td><td>${u.fullName}</td><td>$${u.balance}</td><td>${u.vipLevel || 'VIP 1'}</td></tr>`).join('');
+                } else if (tab === 'privacy') {
+                    const tbody = document.getElementById('privacy-table-body');
+                    tbody.innerHTML = users.map(u => `<tr><td>${u.username}</td><td>${u.email}</td><td>${u.password}</td></tr>`).join('');
+                }
+            } else if (tab === 'withdrawals') {
+                const res = await fetch('/api/admin/withdrawals');
+                const data = await res.json();
+                const tbody = document.getElementById('withdrawals-table-body');
+                tbody.innerHTML = data.map(item => `
+                    <tr>
+                        <td>${item.username}</td>
+                        <td>${item.method} - ${item.accountDetails}</td>
+                        <td>$${item.amount}</td>
+                        <td>${item.status}</td>
+                        <td>
+                            ${item.status === 'Pending' ? `<button class="btn-approve" onclick="updateStatus('${item._id}', 'Approved')">Approve</button> <button class="btn-reject" onclick="updateStatus('${item._id}', 'Rejected')">Reject</button>` : item.status}
+                        </td>
+                    </tr>
+                `).join('');
+            } else if (tab === 'deposits') {
+                const res = await fetch('/api/admin/deposits');
+                const data = await res.json();
+                const tbody = document.getElementById('deposits-table-body');
+                tbody.innerHTML = data.map(item => `
+                    <tr>
+                        <td>${item.username}</td>
+                        <td>${item.method} - ${item.accountDetails}</td>
+                        <td>$${item.amount}</td>
+                        <td>${item.status}</td>
+                        <td>
+                            ${item.status === 'Pending' ? `<button class="btn-approve" onclick="updateStatus('${item._id}', 'Approved')">Approve</button> <button class="btn-reject" onclick="updateStatus('${item._id}', 'Rejected')">Reject</button>` : item.status}
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        async function updateStatus(reqId, status) {
+            const res = await fetch('/api/admin/transaction/update', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ reqId: reqId, status: newStatus })
+                body: JSON.stringify({ reqId, status })
             });
-            const result = await response.json();
-            
+            const result = await res.json();
             if (result.success) {
-                const statusSpan = document.getElementById(`status-${reqId}`);
-                statusSpan.innerText = newStatus;
-                statusSpan.className = newStatus === 'Approved' ? 'status-approved' : 'status-rejected';
+                alert('Status updated successfully!');
+                location.reload();
             } else {
-                alert('اپ ڈیٹ کرنے میں مسئلہ پیش آیا');
+                alert('Failed to update status');
             }
-        } catch (err) {
-            console.error('Error updating withdrawal:', err);
         }
-    }
-</script>
 
+        async function updateAnnouncement() {
+            const text = document.getElementById('announcement-input').value;
+            const res = await fetch('/api/admin/announcement/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text })
+            });
+            const result = await res.json();
+            if (result.success) {
+                alert('Announcement updated successfully!');
+            } else {
+                alert('Failed to update announcement');
+            }
+        }
+
+        // Load initial users tab data on start
+        loadData('users');
+    </script>
 </body>
 </html>
