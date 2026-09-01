@@ -181,7 +181,16 @@ app.post('/api/admin/transaction/update', async (req, res) => {
 
         // Agar pehle approved nahi tha aur ab approve ho raha hai aur type deposit hai
         if (tx.status !== 'Approved' && status === 'Approved' && tx.type === 'deposit') {
-            await User.findOneAndUpdate({ username: tx.username }, { $inc: { balance: tx.amount } });
+            // Case-insensitive regex se user find karein taake spelling ya capital ka masla na ho
+            const updatedUser = await User.findOneAndUpdate(
+                { username: { $regex: new RegExp(`^${tx.username}$`, 'i') } }, 
+                { $inc: { balance: tx.amount } },
+                { new: true }
+            );
+            
+            if (!updatedUser) {
+                return res.status(404).json({ success: false, message: "Transaction ka user database mein nahi mila!" });
+            }
         }
 
         tx.status = status;
@@ -212,7 +221,7 @@ app.post('/api/admin/announcement/update', async (req, res) => {
         await newAnn.save();
         res.json({ success: true, message: 'Announcement updated' });
     } catch (err) {
-        res.status(500).json({ error: 'Update failed' });
+        res.status(500).json({ success: false, message: 'Update failed' });
     }
 });
 
