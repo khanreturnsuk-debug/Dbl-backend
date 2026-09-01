@@ -77,15 +77,22 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
     try {
         await connectDB();
-        const { input, username, email, password } = req.body;
-        const loginIdentifier = input || username || email;
+        // Sab possible field names ko handle karne ke liye
+        const loginIdentifier = req.body.input || req.body.username || req.body.email || req.body.identifier;
+        const password = req.body.password;
+
+        if (!loginIdentifier) {
+            return res.status(400).json({ success: false, message: 'Please provide username or email' });
+        }
+
         const user = await User.findOne({ 
             $or: [
                 { username: { $regex: new RegExp(`^${loginIdentifier.trim()}$`, 'i') } }, 
                 { email: { $regex: new RegExp(`^${loginIdentifier.trim()}$`, 'i') } }
             ] 
         });
-        if (!user || user.password !== password.trim()) {
+
+        if (!user || !password || user.password !== password.trim()) {
             return res.status(400).json({ success: false, message: 'Invalid credentials' });
         }
         res.status(200).json({ success: true, user });
