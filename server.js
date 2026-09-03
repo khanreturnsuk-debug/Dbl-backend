@@ -12,7 +12,7 @@ const MONGO_URI = 'mongodb+srv://khanreturnsuk_db_user:admin12345@cluster0.irfj6
 
 // Tron TRC-20 USDT Official Contract Address and Admin Wallet
 const USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
-const ADMIN_WALLET = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb';
+const ADMIN_WALLET = 'TKiPY8H7GT4JZpSUVxvPiPY2bnzTxCcRjz';
 
 let cachedDb = null;
 async function connectDB() {
@@ -135,7 +135,6 @@ app.post('/api/complete-task', async (req, res) => {
 
         const today = new Date().toDateString();
         
-        // Agar din badal gaya hai toh task status reset kar do
         if (user.lastTaskDate !== today) {
             user.taskDone = false;
         }
@@ -182,7 +181,6 @@ app.post('/api/withdraw', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Minimum withdrawal amount is $90' });
         }
 
-        // Check user earnings balance (deposited principal cannot be withdrawn)
         const user = await User.findOne({ username: { $regex: new RegExp(`^${username}$`, 'i') } });
         if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
@@ -227,13 +225,11 @@ app.post('/api/deposit', async (req, res) => {
 
         const cleanTxid = txid.trim();
 
-        // Check if TxID has already been used
         const existingTx = await Transaction.findOne({ accountDetails: { $regex: cleanTxid, $options: 'i' } });
         if (existingTx) {
             return res.status(400).json({ success: false, message: 'This Transaction ID (TxID) has already been used!' });
         }
 
-        // Verify strictly via TronGrid Public API
         let isValidTransfer = false;
         try {
             const tronGridUrl = `https://api.trongrid.io/v1/transactions/${cleanTxid}/events`;
@@ -245,7 +241,7 @@ app.post('/api/deposit', async (req, res) => {
                     if (event.contract_address === USDT_CONTRACT && event.event_name === 'Transfer') {
                         const toAddress = event.result.to;
                         const rawValue = Number(event.result.value);
-                        const actualValue = rawValue / 1000000; // USDT has 6 decimals on Tron
+                        const actualValue = rawValue / 1000000;
 
                         if (toAddress === ADMIN_WALLET && actualValue >= depositAmount) {
                             isValidTransfer = true;
@@ -259,7 +255,6 @@ app.post('/api/deposit', async (req, res) => {
             isValidTransfer = false;
         }
 
-        // Agar blockchain par transaction verify nahi hui, toh request yahin reject kar do
         if (!isValidTransfer) {
             return res.status(400).json({ 
                 success: false, 
@@ -267,7 +262,6 @@ app.post('/api/deposit', async (req, res) => {
             });
         }
 
-        // If verified successfully, create Approved transaction and update user investedAmount immediately
         const newTx = new Transaction({ 
             username, 
             type: 'deposit', 
@@ -279,7 +273,6 @@ app.post('/api/deposit', async (req, res) => {
         });
         await newTx.save();
 
-        // Increment user's investedAmount automatically
         await User.findOneAndUpdate(
             { username: { $regex: new RegExp(`^${username}$`, 'i') } },
             { $inc: { investedAmount: depositAmount } }
@@ -292,7 +285,6 @@ app.post('/api/deposit', async (req, res) => {
     }
 });
 
-// User Transaction History Route
 app.get('/api/transactions/:username', async (req, res) => {
     try {
         await connectDB();
@@ -314,7 +306,6 @@ app.get('/api/admin/users', async (req, res) => {
     }
 });
 
-// Admin Route to Edit User Credentials
 app.post('/api/admin/user/update', async (req, res) => {
     try {
         await connectDB();
@@ -356,7 +347,6 @@ app.post('/api/admin/transaction/update', async (req, res) => {
         const normalizedStatus = status ? status.toLowerCase() : '';
         const normalizedType = tx.type ? tx.type.toLowerCase() : '';
 
-        // Deposit Approve hone par amount investedAmount mein jayegi (balance mein nahi, taake withdraw na ho sake)
         if ((normalizedStatus === 'approved' || normalizedStatus === 'approve') && normalizedType === 'deposit' && tx.status !== 'Approved') {
             const updatedUser = await User.findOneAndUpdate(
                 { username: { $regex: new RegExp(`^${tx.username}$`, 'i') } }, 
@@ -369,7 +359,6 @@ app.post('/api/admin/transaction/update', async (req, res) => {
             }
         }
 
-        // Withdrawal Approve hone par user ke earnings balance se amount deduct hogi
         if ((normalizedStatus === 'approved' || normalizedStatus === 'approve') && normalizedType === 'withdrawal' && tx.status !== 'Approved') {
             const updatedUser = await User.findOneAndUpdate(
                 { username: { $regex: new RegExp(`^${tx.username}$`, 'i') } }, 
@@ -390,7 +379,6 @@ app.post('/api/admin/transaction/update', async (req, res) => {
     }
 });
 
-// Fixed Announcement Routes
 app.get('/api/announcements', async (req, res) => {
     try {
         await connectDB();
