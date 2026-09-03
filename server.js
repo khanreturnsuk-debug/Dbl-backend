@@ -210,7 +210,7 @@ app.post('/api/withdraw', async (req, res) => {
     }
 });
 
-// Minimum Deposit Limit ($100) with Tron TRC-20 Auto-Verification
+// Minimum Deposit Limit ($100) with Strict Tron TRC-20 Auto-Verification
 app.post('/api/deposit', async (req, res) => {
     try {
         await connectDB();
@@ -221,23 +221,24 @@ app.post('/api/deposit', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Minimum deposit amount is $100' });
         }
 
-        if (!txid) {
+        if (!txid || txid.trim() === '') {
             return res.status(400).json({ success: false, message: 'Transaction Hash (TxID) is required for auto-verification' });
         }
 
+        const cleanTxid = txid.trim();
+
         // Check if TxID has already been used
-        const existingTx = await Transaction.findOne({ accountDetails: { $regex: txid, $options: 'i' } });
+        const existingTx = await Transaction.findOne({ accountDetails: { $regex: cleanTxid, $options: 'i' } });
         if (existingTx) {
             return res.status(400).json({ success: false, message: 'This Transaction ID (TxID) has already been used!' });
         }
 
-        // Verify via TronGrid Public API
+        // Verify strictly via TronGrid Public API
+        let isValidTransfer = false;
         try {
-            const tronGridUrl = `https://api.trongrid.io/v1/transactions/${txid}/events`;
+            const tronGridUrl = `https://api.trongrid.io/v1/transactions/${cleanTxid}/events`;
             const response = await axios.get(tronGridUrl);
             const events = response.data.data;
-
-            let isValidTransfer = false;
 
             if (events && events.length > 0) {
                 for (let event of events) {
@@ -253,41 +254,38 @@ app.post('/api/deposit', async (req, res) => {
                     }
                 }
             }
-
-            if (!isValidTransfer) {
-                return res.status(400).json({ 
-                    success: false, 
-                    message: 'Auto-verification failed! Transaction not found, amount does not match, or recipient is incorrect.' 
-                });
-            }
-
-            // If verified successfully, create Approved transaction and update user investedAmount immediately
-            const newTx = new Transaction({ 
-                username, 
-                type: 'deposit', 
-                amount: depositAmount, 
-                netAmount: depositAmount,
-                method: method || 'USDT TRC20', 
-                accountDetails: `TxID: ${txid} | Sender: ${sender}`, 
-                status: 'Approved' 
-            });
-            await newTx.save();
-
-            // Increment user's investedAmount automatically
-            await User.findOneAndUpdate(
-                { username: { $regex: new RegExp(`^${username}$`, 'i') } },
-                { $inc: { investedAmount: depositAmount } }
-            );
-
-            return res.json({ success: true, message: 'Deposit verified and approved successfully!' });
-
         } catch (apiErr) {
-            console.error('TronGrid API Error:', apiErr.message);
+            console.error('TronGrid API Error or Invalid TxID:', apiErr.message);
+            isValidTransfer = false;
+        }
+
+        // Agar blockchain par transaction verify nahi hui, toh request yahin reject kar do
+        if (!isValidTransfer) {
             return res.status(400).json({ 
                 success: false, 
-                message: 'Could not verify TxID on Tron blockchain. Make sure the TxID is correct and confirmed.' 
+                message: 'Auto-verification failed! Invalid TxID, transaction not found on blockchain, amount mismatch, or incorrect recipient.' 
             });
         }
+
+        // If verified successfully, create Approved transaction and update user investedAmount immediately
+        const newTx = new Transaction({ 
+            username, 
+            type: 'deposit', 
+            amount: depositAmount, 
+            netAmount: depositAmount,
+            method: method || 'USDT TRC20', 
+            accountDetails: `TxID: ${cleanTxid} | Sender: ${sender || 'N/A'}`, 
+            status: 'Approved' 
+        });
+        await newTx.save();
+
+        // Increment user's investedAmount automatically
+        await User.findOneAndUpdate(
+            { username: { $regex: new RegExp(`^${username}$`, 'i') } },
+            { $inc: { investedAmount: depositAmount } }
+        );
+
+        return res.json({ success: true, message: 'Deposit verified and approved successfully!' });
 
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
