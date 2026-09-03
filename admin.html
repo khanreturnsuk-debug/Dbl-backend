@@ -23,6 +23,8 @@
         .form-control { width: 100%; padding: 10px; background: #0d1117; border: 1px solid #30363d; color: #fff; border-radius: 6px; margin-bottom: 10px; }
         .action-btn { background: #2ea043; color: #fff; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
         .counter-box { margin-bottom: 15px; font-size: 16px; color: #2ea043; font-weight: bold; }
+        .badge-done { background: #2ea043; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .badge-pending { background: #f85149; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -49,7 +51,7 @@
             </div>
         </div>
 
-        <!-- 1. Users Information Tab with Count -->
+        <!-- 1. Users Information Tab with Count & Task Status -->
         <div id="tab-users" class="section active">
             <h3>Registered Users</h3>
             <div id="user-count" class="counter-box">Total Users: 0</div>
@@ -60,6 +62,7 @@
                         <th>Full Name</th>
                         <th>Balance</th>
                         <th>VIP Level</th>
+                        <th>Task Status</th>
                     </tr>
                 </thead>
                 <tbody id="users-table-body"></tbody>
@@ -165,8 +168,23 @@
                 
                 if (tab === 'users') {
                     document.getElementById('user-count').innerText = `Total Users: ${users.length}`;
+                    const today = new Date().toDateString();
                     const tbody = document.getElementById('users-table-body');
-                    tbody.innerHTML = users.map(u => `<tr><td>${u.username}</td><td>${u.fullName}</td><td>$${u.balance}</td><td>${u.vipLevel || 'VIP 1'}</td></tr>`).join('');
+                    tbody.innerHTML = users.map(u => {
+                        // Check if task is completed today based on lastTaskDate and taskDone flag
+                        const isDoneToday = u.taskDone && u.lastTaskDate === today;
+                        const taskStatusBadge = isDoneToday 
+                            ? `<span class="badge-done">Completed</span>` 
+                            : `<span class="badge-pending">Pending</span>`;
+
+                        return `<tr>
+                            <td>${u.username}</td>
+                            <td>${u.fullName}</td>
+                            <td>$${u.balance}</td>
+                            <td>${u.vipLevel || 'VIP 1'}</td>
+                            <td>${taskStatusBadge}</td>
+                        </tr>`;
+                    }).join('');
                 } else if (tab === 'privacy') {
                     const tbody = document.getElementById('privacy-table-body');
                     tbody.innerHTML = users.map(u => `
