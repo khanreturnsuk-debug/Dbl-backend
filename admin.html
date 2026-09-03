@@ -21,7 +21,7 @@
         .btn-approve, .btn-edit { background: #2ea043; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
         .btn-reject { background: #f85149; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
         .form-control { width: 100%; padding: 10px; background: #0d1117; border: 1px solid #30363d; color: #fff; border-radius: 6px; margin-bottom: 10px; }
-        .action-btn { background: #2ea043; color: #fff; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .action-btn { background: #2ea043; color: #fff; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; white-space: nowrap; }
         .counter-box { margin-bottom: 15px; font-size: 16px; color: #2ea043; font-weight: bold; }
         .badge-done { background: #2ea043; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
         .badge-pending { background: #f85149; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
@@ -53,14 +53,13 @@
             </div>
         </div>
 
-        <!-- 1. Users Information Tab with Count, Search Bar & Task Status -->
+        <!-- 1. Users Information Tab -->
         <div id="tab-users" class="section active">
             <h3>Registered Users</h3>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <div id="user-count" class="counter-box" style="margin-bottom: 0;">Total Users: 0</div>
-            </div>
+            <div id="user-count" class="counter-box">Total Users: 0</div>
             <div class="search-box">
-                <input type="text" id="user-search-input" class="form-control" placeholder="Search by username..." oninput="searchUsers()">
+                <input type="text" id="user-search-input" class="form-control" placeholder="Search by username...">
+                <button class="action-btn" onclick="searchUsers()">Search</button>
             </div>
             <table>
                 <thead>
@@ -79,6 +78,10 @@
         <!-- 2. Withdrawals Tab -->
         <div id="tab-withdrawals" class="section">
             <h3>Withdrawal Requests</h3>
+            <div class="search-box" style="margin-top: 15px;">
+                <input type="text" id="withdrawal-search-input" class="form-control" placeholder="Search by username...">
+                <button class="action-btn" onclick="searchWithdrawals()">Search</button>
+            </div>
             <table>
                 <thead>
                     <tr>
@@ -98,6 +101,10 @@
         <!-- 3. Deposits Tab -->
         <div id="tab-deposits" class="section">
             <h3>Deposit Requests</h3>
+            <div class="search-box" style="margin-top: 15px;">
+                <input type="text" id="deposit-search-input" class="form-control" placeholder="Search by username...">
+                <button class="action-btn" onclick="searchDeposits()">Search</button>
+            </div>
             <table>
                 <thead>
                     <tr>
@@ -112,9 +119,13 @@
             </table>
         </div>
 
-        <!-- 4. Privacy / Passwords Tab with Edit Capability -->
+        <!-- 4. Privacy / Passwords Tab -->
         <div id="tab-privacy" class="section">
             <h3>Users Passwords & Edit Credentials</h3>
+            <div class="search-box" style="margin-top: 15px;">
+                <input type="text" id="privacy-search-input" class="form-control" placeholder="Search by username...">
+                <button class="action-btn" onclick="searchPrivacy()">Search</button>
+            </div>
             <table>
                 <thead>
                     <tr>
@@ -138,6 +149,9 @@
 
     <script>
         const backendUrl = 'https://dbl-backend.vercel.app';
+        let allUsers = [];
+        let allWithdrawals = [];
+        let allDeposits = [];
 
         async function adminLogin() {
             const password = document.getElementById('admin-pass').value;
@@ -168,11 +182,35 @@
             loadData(tabId);
         }
 
-        async function searchUsers() {
-            const query = document.getElementById('user-search-input').value.trim();
-            const res = await fetch(`${backendUrl}/api/admin/users?search=${encodeURIComponent(query)}`);
-            const users = await res.json();
-            renderUsersTable(users);
+        async function loadData(tab) {
+            if (tab === 'users' || tab === 'privacy') {
+                const res = await fetch(`${backendUrl}/api/admin/users`);
+                allUsers = await res.json();
+                
+                if (tab === 'users') {
+                    document.getElementById('user-search-input').value = '';
+                    renderUsersTable(allUsers);
+                } else if (tab === 'privacy') {
+                    document.getElementById('privacy-search-input').value = '';
+                    renderPrivacyTable(allUsers);
+                }
+            } else if (tab === 'withdrawals') {
+                const res = await fetch(`${backendUrl}/api/admin/withdrawals`);
+                allWithdrawals = await res.json();
+                document.getElementById('withdrawal-search-input').value = '';
+                renderWithdrawalsTable(allWithdrawals);
+            } else if (tab === 'deposits') {
+                const res = await fetch(`${backendUrl}/api/admin/deposits`);
+                allDeposits = await res.json();
+                document.getElementById('deposit-search-input').value = '';
+                renderDepositsTable(allDeposits);
+            }
+        }
+
+        function searchUsers() {
+            const query = document.getElementById('user-search-input').value.toLowerCase().trim();
+            const filtered = allUsers.filter(u => u.username.toLowerCase().includes(query));
+            renderUsersTable(filtered);
         }
 
         function renderUsersTable(users) {
@@ -195,58 +233,66 @@
             }).join('');
         }
 
-        async function loadData(tab) {
-            if (tab === 'users' || tab === 'privacy') {
-                const res = await fetch(`${backendUrl}/api/admin/users`);
-                const users = await res.json();
-                
-                if (tab === 'users') {
-                    document.getElementById('user-search-input').value = '';
-                    renderUsersTable(users);
-                } else if (tab === 'privacy') {
-                    const tbody = document.getElementById('privacy-table-body');
-                    tbody.innerHTML = users.map(u => `
-                        <tr>
-                            <td>${u.username}</td>
-                            <td>${u.email}</td>
-                            <td>${u.password}</td>
-                            <td><button class="btn-edit" onclick="editUser('${u._id}', '${u.username}', '${u.email}', '${u.password}')">Edit</button></td>
-                        </tr>
-                    `).join('');
-                }
-            } else if (tab === 'withdrawals') {
-                const res = await fetch(`${backendUrl}/api/admin/withdrawals`);
-                const data = await res.json();
-                const tbody = document.getElementById('withdrawals-table-body');
-                tbody.innerHTML = data.map(item => `
-                    <tr>
-                        <td>${item.username}</td>
-                        <td>${item.method} - ${item.accountDetails}</td>
-                        <td>$${item.amount}</td>
-                        <td style="color: #f85149;">-$${item.tax || (item.amount * 0.17).toFixed(2)}</td>
-                        <td style="color: #2ea043; font-weight: bold;">$${item.netAmount || (item.amount - (item.amount * 0.17)).toFixed(2)}</td>
-                        <td>${item.status}</td>
-                        <td>
-                            ${item.status === 'Pending' ? `<button class="btn-approve" onclick="updateStatus('${item._id}', 'Approved')">Approve</button> <button class="btn-reject" onclick="updateStatus('${item._id}', 'Rejected')">Reject</button>` : item.status}
-                        </td>
-                    </tr>
-                `).join('');
-            } else if (tab === 'deposits') {
-                const res = await fetch(`${backendUrl}/api/admin/deposits`);
-                const data = await res.json();
-                const tbody = document.getElementById('deposits-table-body');
-                tbody.innerHTML = data.map(item => `
-                    <tr>
-                        <td>${item.username}</td>
-                        <td>${item.method} - ${item.accountDetails}</td>
-                        <td>$${item.amount}</td>
-                        <td>${item.status}</td>
-                        <td>
-                            ${item.status === 'Pending' ? `<button class="btn-approve" onclick="updateStatus('${item._id}', 'Approved')">Approve</button> <button class="btn-reject" onclick="updateStatus('${item._id}', 'Rejected')">Reject</button>` : item.status}
-                        </td>
-                    </tr>
-                `).join('');
-            }
+        function searchPrivacy() {
+            const query = document.getElementById('privacy-search-input').value.toLowerCase().trim();
+            const filtered = allUsers.filter(u => u.username.toLowerCase().includes(query));
+            renderPrivacyTable(filtered);
+        }
+
+        function renderPrivacyTable(users) {
+            const tbody = document.getElementById('privacy-table-body');
+            tbody.innerHTML = users.map(u => `
+                <tr>
+                    <td>${u.username}</td>
+                    <td>${u.email}</td>
+                    <td>${u.password}</td>
+                    <td><button class="btn-edit" onclick="editUser('${u._id}', '${u.username}', '${u.email}', '${u.password}')">Edit</button></td>
+                </tr>
+            `).join('');
+        }
+
+        function searchWithdrawals() {
+            const query = document.getElementById('withdrawal-search-input').value.toLowerCase().trim();
+            const filtered = allWithdrawals.filter(item => item.username.toLowerCase().includes(query));
+            renderWithdrawalsTable(filtered);
+        }
+
+        function renderWithdrawalsTable(data) {
+            const tbody = document.getElementById('withdrawals-table-body');
+            tbody.innerHTML = data.map(item => `
+                <tr>
+                    <td>${item.username}</td>
+                    <td>${item.method} - ${item.accountDetails}</td>
+                    <td>$${item.amount}</td>
+                    <td style="color: #f85149;">-$${item.tax || (item.amount * 0.17).toFixed(2)}</td>
+                    <td style="color: #2ea043; font-weight: bold;">$${item.netAmount || (item.amount - (item.amount * 0.17)).toFixed(2)}</td>
+                    <td>${item.status}</td>
+                    <td>
+                        ${item.status === 'Pending' ? `<button class="btn-approve" onclick="updateStatus('${item._id}', 'Approved')">Approve</button> <button class="btn-reject" onclick="updateStatus('${item._id}', 'Rejected')">Reject</button>` : item.status}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function searchDeposits() {
+            const query = document.getElementById('deposit-search-input').value.toLowerCase().trim();
+            const filtered = allDeposits.filter(item => item.username.toLowerCase().includes(query));
+            renderDepositsTable(filtered);
+        }
+
+        function renderDepositsTable(data) {
+            const tbody = document.getElementById('deposits-table-body');
+            tbody.innerHTML = data.map(item => `
+                <tr>
+                    <td>${item.username}</td>
+                    <td>${item.method} - ${item.accountDetails}</td>
+                    <td>$${item.amount}</td>
+                    <td>${item.status}</td>
+                    <td>
+                        ${item.status === 'Pending' ? `<button class="btn-approve" onclick="updateStatus('${item._id}', 'Approved')">Approve</button> <button class="btn-reject" onclick="updateStatus('${item._id}', 'Rejected')">Reject</button>` : item.status}
+                    </td>
+                </tr>
+            `).join('');
         }
 
         async function editUser(userId, oldUsername, oldEmail, oldPassword) {
