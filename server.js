@@ -230,10 +230,10 @@ app.post('/api/deposit', async (req, res) => {
         let isValidTransfer = false;
 
         // ==========================================
-        // ADMIN UNLIMITED TEST TRANSACTION BYPASS
+        // ADMIN UNLIMITED TEST TRANSACTION BYPASS (Only for anas_admin)
         // ==========================================
         if (cleanTxid === TEST_ADMIN_TXID) {
-            if (lowerUsername === 'anas_admin' || lowerUsername === 'admin') {
+            if (lowerUsername === 'anas_admin') {
                 isValidTransfer = true; 
             } else {
                 return res.status(400).json({ 
@@ -290,7 +290,6 @@ app.post('/api/deposit', async (req, res) => {
         });
         await newTx.save();
 
-        // Updated user ko fetch karke response mein bhejna taake frontend foran update kar le
         const updatedUser = await User.findOneAndUpdate(
             { username: { $regex: new RegExp(`^${username}$`, 'i') } },
             { $inc: { investedAmount: depositAmount, balance: depositAmount } },
@@ -304,11 +303,14 @@ app.post('/api/deposit', async (req, res) => {
     }
 });
 
+// Case-insensitive transactions route fix
 app.get('/api/transactions/:username', async (req, res) => {
     try {
         await connectDB();
         const { username } = req.params;
-        const transactions = await Transaction.find({ username }).sort({ createdAt: -1 });
+        const transactions = await Transaction.find({ 
+            username: new RegExp(`^${username}$`, 'i') 
+        }).sort({ createdAt: -1 });
         res.json(transactions);
     } catch (err) {
         res.status(500).json({ error: 'Server error' });
