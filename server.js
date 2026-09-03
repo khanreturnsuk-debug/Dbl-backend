@@ -12,7 +12,7 @@ const MONGO_URI = 'mongodb+srv://khanreturnsuk_db_user:admin12345@cluster0.irfj6
 
 // Tron TRC-20 USDT Official Contract Address and Admin Wallet
 const USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
-const ADMIN_WALLET = 'YOUR_ADMIN_TRON_WALLET_ADDRESS_HERE'; // T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb
+const ADMIN_WALLET = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb';
 
 let cachedDb = null;
 async function connectDB() {
