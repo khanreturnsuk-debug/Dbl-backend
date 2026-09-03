@@ -100,13 +100,21 @@ app.post('/api/login', async (req, res) => {
         if (!user || !password || user.password !== password.trim()) {
             return res.status(400).json({ success: false, message: 'Invalid credentials' });
         }
+
+        // Auto-reset task if a new day has started (Midnight reset)
+        const today = new Date().toDateString();
+        if (user.lastTaskDate !== today) {
+            user.taskDone = false;
+            await user.save();
+        }
+
         res.status(200).json({ success: true, user });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
 });
 
-// Daily Task Completion Route
+// Daily Task Completion Route with Automatic Midnight Reset
 app.post('/api/complete-task', async (req, res) => {
     try {
         await connectDB();
@@ -121,7 +129,13 @@ app.post('/api/complete-task', async (req, res) => {
         }
 
         const today = new Date().toDateString();
-        if (user.lastTaskDate === today && user.taskDone) {
+        
+        // Agar din badal gaya hai toh task status reset kar do
+        if (user.lastTaskDate !== today) {
+            user.taskDone = false;
+        }
+
+        if (user.taskDone && user.lastTaskDate === today) {
             return res.status(400).json({ success: false, message: "Task already completed today!" });
         }
 
@@ -304,7 +318,7 @@ app.post('/api/admin/transaction/update', async (req, res) => {
             );
             
             if (!updatedUser) {
-                return res.status(404, message: `User '${tx.username}' database mein nahi mila!` });
+                return res.status(404).json({ success: false, message: `User '${tx.username}' database mein nahi mila!` });
             }
         }
 
