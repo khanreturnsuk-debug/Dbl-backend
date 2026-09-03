@@ -1,4 +1,4 @@
-const express = require('express');
+Const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const path = require('path');
@@ -208,7 +208,7 @@ app.post('/api/withdraw', async (req, res) => {
     }
 });
 
-// Minimum Deposit Limit ($100) with Strict Tron TRC-20 Auto-Verification & Admin Test Bypass
+// Minimum Deposit Limit ($100) with Strict Tron TRC-20 Auto-Verification & Admin Unlimited Test Bypass
 app.post('/api/deposit', async (req, res) => {
     try {
         await connectDB();
@@ -224,22 +224,30 @@ app.post('/api/deposit', async (req, res) => {
         }
 
         const cleanTxid = txid.trim();
-
-        const existingTx = await Transaction.findOne({ accountDetails: { $regex: cleanTxid, $options: 'i' } });
-        if (existingTx) {
-            return res.status(400).json({ success: false, message: 'This Transaction ID (TxID) has already been used!' });
-        }
+        const lowerUsername = username ? username.toLowerCase().trim() : '';
+        const TEST_ADMIN_TXID = "DBL_TEST_TXID_12345";
 
         let isValidTransfer = false;
 
         // ==========================================
-        // ADMIN TEST TRANSACTION BYPASS
+        // ADMIN UNLIMITED TEST TRANSACTION BYPASS
         // ==========================================
-        const TEST_ADMIN_TXID = "DBL_TEST_TXID_12345";
-        
         if (cleanTxid === TEST_ADMIN_TXID) {
-            isValidTransfer = true; // Test TxID bypasses blockchain check for testing
+            if (lowerUsername === 'anas_admin' || lowerUsername === 'admin') {
+                isValidTransfer = true; // Admin ke liye unlimited times bypass karega aur error nahi dega
+            } else {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'Invalid or unauthorized transaction ID.' 
+                });
+            }
         } else {
+            // Aam users ke liye purana single-use check (duplicate TxID check)
+            const existingTx = await Transaction.findOne({ accountDetails: { $regex: cleanTxid, $options: 'i' } });
+            if (existingTx) {
+                return res.status(400).json({ success: false, message: 'This Transaction ID (TxID) has already been used!' });
+            }
+
             // Strict TronGrid API check for regular users
             try {
                 const tronGridUrl = `https://api.trongrid.io/v1/transactions/${cleanTxid}/events`;
