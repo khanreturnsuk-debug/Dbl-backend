@@ -234,7 +234,7 @@ app.post('/api/deposit', async (req, res) => {
         // ==========================================
         if (cleanTxid === TEST_ADMIN_TXID) {
             if (lowerUsername === 'anas_admin' || lowerUsername === 'admin') {
-                isValidTransfer = true; // Admin ke liye unlimited times bypass karega aur error nahi dega
+                isValidTransfer = true; 
             } else {
                 return res.status(400).json({ 
                     success: false, 
@@ -242,13 +242,11 @@ app.post('/api/deposit', async (req, res) => {
                 });
             }
         } else {
-            // Aam users ke liye purana single-use check (duplicate TxID check)
             const existingTx = await Transaction.findOne({ accountDetails: { $regex: cleanTxid, $options: 'i' } });
             if (existingTx) {
                 return res.status(400).json({ success: false, message: 'This Transaction ID (TxID) has already been used!' });
             }
 
-            // Strict TronGrid API check for regular users
             try {
                 const tronGridUrl = `https://api.trongrid.io/v1/transactions/${cleanTxid}/events`;
                 const response = await axios.get(tronGridUrl);
@@ -292,9 +290,10 @@ app.post('/api/deposit', async (req, res) => {
         });
         await newTx.save();
 
+        // Updated here: investedAmount aur balance dono increase honge taake dashboard par show ho
         await User.findOneAndUpdate(
             { username: { $regex: new RegExp(`^${username}$`, 'i') } },
-            { $inc: { investedAmount: depositAmount } }
+            { $inc: { investedAmount: depositAmount, balance: depositAmount } }
         );
 
         return res.json({ success: true, message: 'Deposit verified and approved successfully!' });
@@ -369,7 +368,7 @@ app.post('/api/admin/transaction/update', async (req, res) => {
         if ((normalizedStatus === 'approved' || normalizedStatus === 'approve') && normalizedType === 'deposit' && tx.status !== 'Approved') {
             const updatedUser = await User.findOneAndUpdate(
                 { username: { $regex: new RegExp(`^${tx.username}$`, 'i') } }, 
-                { $inc: { investedAmount: Number(tx.amount) } },
+                { $inc: { investedAmount: Number(tx.amount), balance: Number(tx.amount) } },
                 { new: true }
             );
             
