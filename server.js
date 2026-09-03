@@ -2,12 +2,17 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const path = require('path');
+const axios = require('axios');
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
 const MONGO_URI = 'mongodb+srv://khanreturnsuk_db_user:admin12345@cluster0.irfj6ne.mongodb.net/dbl_database?appName=Cluster0';
+
+// Tron TRC-20 USDT Official Contract Address and Admin Wallet
+const USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
+const ADMIN_WALLET = 'YOUR_ADMIN_TRON_WALLET_ADDRESS_HERE'; // Apna Tron wallet address yahan daalein
 
 let cachedDb = null;
 async function connectDB() {
@@ -205,28 +210,85 @@ app.post('/api/withdraw', async (req, res) => {
     }
 });
 
-// Minimum Deposit Limit ($100)
+// Minimum Deposit Limit ($100) with Tron TRC-20 Auto-Verification
 app.post('/api/deposit', async (req, res) => {
     try {
         await connectDB();
-        const { username, method, sender, amount } = req.body;
+        const { username, method, sender, amount, txid } = req.body;
         const depositAmount = Number(amount);
 
         if (depositAmount < 100) {
             return res.status(400).json({ success: false, message: 'Minimum deposit amount is $100' });
         }
 
-        const newTx = new Transaction({ 
-            username, 
-            type: 'deposit', 
-            amount: depositAmount, 
-            netAmount: depositAmount,
-            method, 
-            accountDetails: `Sender: ${sender}`, 
-            status: 'Pending' 
-        });
-        await newTx.save();
-        res.json({ success: true, message: 'Deposit requested successfully' });
+        if (!txid) {
+            return res.status(400).json({ success: false, message: 'Transaction Hash (TxID) is required for auto-verification' });
+        }
+
+        // Check if TxID has already been used
+        const existingTx = await Transaction.findOne({ accountDetails: { $regex: txid, $options: 'i' } });
+        if (existingTx) {
+            return res.status(400).json({ success: false, message: 'This Transaction ID (TxID) has already been used!' });
+        }
+
+        // Verify via TronGrid Public API
+        try {
+            const tronGridUrl = `https://api.trongrid.io/v1/transactions/${txid}/events`;
+            const response = await axios.get(tronGridUrl);
+            const events = response.data.data;
+
+            let isValidTransfer = false;
+
+            if (events && events.length > 0) {
+                for (let event of events) {
+                    if (event.contract_address === USDT_CONTRACT && event.event_name === 'Transfer') {
+                        const toAddress = event.result.to;
+                        const rawValue = Number(event.result.value);
+                        const actualValue = rawValue / 1000000; // USDT has 6 decimals on Tron
+
+                        if (toAddress === ADMIN_WALLET && actualValue >= depositAmount) {
+                            isValidTransfer = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (!isValidTransfer) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'Auto-verification failed! Transaction not found, amount does not match, or recipient is incorrect.' 
+                });
+            }
+
+            // If verified successfully, create Approved transaction and update user investedAmount immediately
+            const newTx = new Transaction({ 
+                username, 
+                type: 'deposit', 
+                amount: depositAmount, 
+                netAmount: depositAmount,
+                method: method || 'USDT TRC20', 
+                accountDetails: `TxID: ${txid} | Sender: ${sender}`, 
+                status: 'Approved' 
+            });
+            await newTx.save();
+
+            // Increment user's investedAmount automatically
+            await User.findOneAndUpdate(
+                { username: { $regex: new RegExp(`^${username}$`, 'i') } },
+                { $inc: { investedAmount: depositAmount } }
+            );
+
+            return res.json({ success: true, message: 'Deposit verified and approved successfully!' });
+
+        } catch (apiErr) {
+            console.error('TronGrid API Error:', apiErr.message);
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Could not verify TxID on Tron blockchain. Make sure the TxID is correct and confirmed.' 
+            });
+        }
+
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
