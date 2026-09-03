@@ -27,6 +27,8 @@ const userSchema = new mongoose.Schema({
     investedAmount: { type: Number, default: 0 },  // VIP deposit principal (non-withdrawable)
     vipLevel: { type: String, default: 'VIP 1' },
     referredBy: { type: String, default: '' },
+    taskDone: { type: Boolean, default: false },
+    lastTaskDate: { type: String, default: '' },
     createdAt: { type: Date, default: Date.now }
 });
 
@@ -99,6 +101,52 @@ app.post('/api/login', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Invalid credentials' });
         }
         res.status(200).json({ success: true, user });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Daily Task Completion Route
+app.post('/api/complete-task', async (req, res) => {
+    try {
+        await connectDB();
+        const { username } = req.body;
+        if (!username) {
+            return res.status(400).json({ success: false, message: "Username is required" });
+        }
+
+        const user = await User.findOne({ username: new RegExp(`^${username}$`, 'i') });
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        const today = new Date().toDateString();
+        if (user.lastTaskDate === today && user.taskDone) {
+            return res.status(400).json({ success: false, message: "Task already completed today!" });
+        }
+
+        const totalBalance = (user.balance || 0) + (user.investedAmount || 0);
+        
+        let reward = 1.00;
+        if (totalBalance >= 5000) reward = 50.00;
+        else if (totalBalance >= 1000) reward = 10.00;
+        else if (totalBalance >= 800) reward = 8.00;
+        else if (totalBalance >= 500) reward = 5.00;
+        else if (totalBalance >= 200) reward = 2.00;
+        else if (totalBalance >= 100) reward = 1.00;
+
+        user.balance = (user.balance || 0) + reward;
+        user.taskDone = true;
+        user.lastTaskDate = today;
+
+        await user.save();
+
+        res.json({
+            success: true,
+            message: "Task completed successfully",
+            balance: user.balance,
+            reward: reward
+        });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -256,7 +304,7 @@ app.post('/api/admin/transaction/update', async (req, res) => {
             );
             
             if (!updatedUser) {
-                return res.status(404).json({ success: false, message: `User '${tx.username}' database mein nahi mila!` });
+                return res.status(404, message: `User '${tx.username}' database mein nahi mila!` });
             }
         }
 
