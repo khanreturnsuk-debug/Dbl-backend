@@ -25,6 +25,8 @@
         .counter-box { margin-bottom: 15px; font-size: 16px; color: #2ea043; font-weight: bold; }
         .badge-done { background: #2ea043; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
         .badge-pending { background: #f85149; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .search-box { display: flex; gap: 10px; margin-bottom: 15px; }
+        .search-box input { margin-bottom: 0; }
     </style>
 </head>
 <body>
@@ -51,10 +53,15 @@
             </div>
         </div>
 
-        <!-- 1. Users Information Tab with Count & Task Status -->
+        <!-- 1. Users Information Tab with Count, Search Bar & Task Status -->
         <div id="tab-users" class="section active">
             <h3>Registered Users</h3>
-            <div id="user-count" class="counter-box">Total Users: 0</div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div id="user-count" class="counter-box" style="margin-bottom: 0;">Total Users: 0</div>
+            </div>
+            <div class="search-box">
+                <input type="text" id="user-search-input" class="form-control" placeholder="Search by username..." oninput="searchUsers()">
+            </div>
             <table>
                 <thead>
                     <tr>
@@ -161,30 +168,41 @@
             loadData(tabId);
         }
 
+        async function searchUsers() {
+            const query = document.getElementById('user-search-input').value.trim();
+            const res = await fetch(`${backendUrl}/api/admin/users?search=${encodeURIComponent(query)}`);
+            const users = await res.json();
+            renderUsersTable(users);
+        }
+
+        function renderUsersTable(users) {
+            document.getElementById('user-count').innerText = `Total Users: ${users.length}`;
+            const today = new Date().toDateString();
+            const tbody = document.getElementById('users-table-body');
+            tbody.innerHTML = users.map(u => {
+                const isDoneToday = u.taskDone && u.lastTaskDate === today;
+                const taskStatusBadge = isDoneToday 
+                    ? `<span class="badge-done">Completed</span>` 
+                    : `<span class="badge-pending">Pending</span>`;
+
+                return `<tr>
+                    <td>${u.username}</td>
+                    <td>${u.fullName}</td>
+                    <td>$${u.balance}</td>
+                    <td>${u.vipLevel || 'VIP 1'}</td>
+                    <td>${taskStatusBadge}</td>
+                </tr>`;
+            }).join('');
+        }
+
         async function loadData(tab) {
             if (tab === 'users' || tab === 'privacy') {
                 const res = await fetch(`${backendUrl}/api/admin/users`);
                 const users = await res.json();
                 
                 if (tab === 'users') {
-                    document.getElementById('user-count').innerText = `Total Users: ${users.length}`;
-                    const today = new Date().toDateString();
-                    const tbody = document.getElementById('users-table-body');
-                    tbody.innerHTML = users.map(u => {
-                        // Check if task is completed today based on lastTaskDate and taskDone flag
-                        const isDoneToday = u.taskDone && u.lastTaskDate === today;
-                        const taskStatusBadge = isDoneToday 
-                            ? `<span class="badge-done">Completed</span>` 
-                            : `<span class="badge-pending">Pending</span>`;
-
-                        return `<tr>
-                            <td>${u.username}</td>
-                            <td>${u.fullName}</td>
-                            <td>$${u.balance}</td>
-                            <td>${u.vipLevel || 'VIP 1'}</td>
-                            <td>${taskStatusBadge}</td>
-                        </tr>`;
-                    }).join('');
+                    document.getElementById('user-search-input').value = '';
+                    renderUsersTable(users);
                 } else if (tab === 'privacy') {
                     const tbody = document.getElementById('privacy-table-body');
                     tbody.innerHTML = users.map(u => `
