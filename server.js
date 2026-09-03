@@ -290,13 +290,14 @@ app.post('/api/deposit', async (req, res) => {
         });
         await newTx.save();
 
-        // Updated here: investedAmount aur balance dono increase honge taake dashboard par show ho
-        await User.findOneAndUpdate(
+        // Updated user ko fetch karke response mein bhejna taake frontend foran update kar le
+        const updatedUser = await User.findOneAndUpdate(
             { username: { $regex: new RegExp(`^${username}$`, 'i') } },
-            { $inc: { investedAmount: depositAmount, balance: depositAmount } }
+            { $inc: { investedAmount: depositAmount, balance: depositAmount } },
+            { new: true }
         );
 
-        return res.json({ success: true, message: 'Deposit verified and approved successfully!' });
+        return res.json({ success: true, message: 'Deposit verified and approved successfully!', user: updatedUser });
 
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
