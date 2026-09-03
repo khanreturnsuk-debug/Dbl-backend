@@ -208,7 +208,7 @@ app.post('/api/withdraw', async (req, res) => {
     }
 });
 
-// Minimum Deposit Limit ($100) with Strict Tron TRC-20 Auto-Verification
+// Minimum Deposit Limit ($100) with Strict Tron TRC-20 Auto-Verification & Admin Test Bypass
 app.post('/api/deposit', async (req, res) => {
     try {
         await connectDB();
@@ -231,28 +231,39 @@ app.post('/api/deposit', async (req, res) => {
         }
 
         let isValidTransfer = false;
-        try {
-            const tronGridUrl = `https://api.trongrid.io/v1/transactions/${cleanTxid}/events`;
-            const response = await axios.get(tronGridUrl);
-            const events = response.data.data;
 
-            if (events && events.length > 0) {
-                for (let event of events) {
-                    if (event.contract_address === USDT_CONTRACT && event.event_name === 'Transfer') {
-                        const toAddress = event.result.to;
-                        const rawValue = Number(event.result.value);
-                        const actualValue = rawValue / 1000000;
+        // ==========================================
+        // ADMIN TEST TRANSACTION BYPASS
+        // ==========================================
+        const TEST_ADMIN_TXID = "DBL_TEST_TXID_12345";
+        
+        if (cleanTxid === TEST_ADMIN_TXID) {
+            isValidTransfer = true; // Test TxID bypasses blockchain check for testing
+        } else {
+            // Strict TronGrid API check for regular users
+            try {
+                const tronGridUrl = `https://api.trongrid.io/v1/transactions/${cleanTxid}/events`;
+                const response = await axios.get(tronGridUrl);
+                const events = response.data.data;
 
-                        if (toAddress === ADMIN_WALLET && actualValue >= depositAmount) {
-                            isValidTransfer = true;
-                            break;
+                if (events && events.length > 0) {
+                    for (let event of events) {
+                        if (event.contract_address === USDT_CONTRACT && event.event_name === 'Transfer') {
+                            const toAddress = event.result.to;
+                            const rawValue = Number(event.result.value);
+                            const actualValue = rawValue / 1000000;
+
+                            if (toAddress === ADMIN_WALLET && actualValue >= depositAmount) {
+                                isValidTransfer = true;
+                                break;
+                            }
                         }
                     }
                 }
+            } catch (apiErr) {
+                console.error('TronGrid API Error or Invalid TxID:', apiErr.message);
+                isValidTransfer = false;
             }
-        } catch (apiErr) {
-            console.error('TronGrid API Error or Invalid TxID:', apiErr.message);
-            isValidTransfer = false;
         }
 
         if (!isValidTransfer) {
