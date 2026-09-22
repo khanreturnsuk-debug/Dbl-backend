@@ -41,7 +41,10 @@ const userSchema = new mongoose.Schema({
     email: String,
     phone: String,
     password: String,
-    balance: { type: Number, default: 50 }
+    balance: { type: Number, default: 50 },
+    vipLevel: { type: String, default: 'VIP 1' },
+    taskDone: { type: Boolean, default: false },
+    lastTaskDate: { type: String, default: '' }
 });
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 
@@ -50,11 +53,19 @@ const transactionSchema = new mongoose.Schema({
     type: String,
     method: String,
     amount: Number,
+    tax: Number,
+    netAmount: Number,
     accountDetails: String,
     status: { type: String, default: 'Pending' },
     createdAt: { type: Date, default: Date.now }
 });
 const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
+
+const announcementSchema = new mongoose.Schema({
+    text: String,
+    updatedAt: { type: Date, default: Date.now }
+});
+const Announcement = mongoose.models.Announcement || mongoose.model('Announcement', announcementSchema);
 
 // --- AUTH & USER ROUTES ---
 app.post('/api/register', async (req, res) => {
@@ -173,11 +184,17 @@ app.post('/api/withdraw', async (req, res) => {
         user.balance -= wdAmount;
         await user.save();
 
+        const amtNum = Number(wdAmount);
+        const taxVal = Number((amtNum * 0.17).toFixed(2));
+        const netVal = Number((amtNum - taxVal).toFixed(2));
+
         const tx = new Transaction({
             username,
             type: 'Withdraw',
             method,
-            amount: wdAmount,
+            amount: amtNum,
+            tax: taxVal,
+            netAmount: netVal,
             accountDetails: `${accountName} (${accountNumber})`,
             status: 'Pending'
         });
@@ -189,6 +206,30 @@ app.post('/api/withdraw', async (req, res) => {
 });
 
 // --- ADMIN PANEL API ROUTES ---
+app.get('/api/admin/users', async (req, res) => {
+    try {
+        const list = await User.find().sort({ _id: -1 });
+        res.json(list);
+    } catch (e) {
+        res.status(500).json([]);
+    }
+});
+
+app.post('/api/admin/user/update', async (req, res) => {
+    try {
+        const { userId, username, email, password } = req.body;
+        const user = await User.findById(userId);
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+        if (username) user.username = username;
+        if (email) user.email = email;
+        if (password) user.password = password;
+        await user.save();
+        res.json({ success: true, message: 'User credentials updated successfully' });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
 app.get('/api/admin/withdrawals', async (req, res) => {
     try {
         const list = await Transaction.find({ type: 'Withdraw' }).sort({ createdAt: -1 });
@@ -214,7 +255,7 @@ app.post('/api/admin/transaction/update', async (req, res) => {
         if (!tx) return res.status(404).json({ success: false, message: 'Transaction not found' });
 
         if (status === 'Approved' && tx.status !== 'Approved' && tx.type === 'Deposit') {
-            const user = await User.findOne({ username: tx.username });
+            const user = await User.findOne({ username:l tx.username });
             if (user) {
                 user.balance += Number(tx.amount);
                 await user.save();
@@ -226,6 +267,33 @@ app.post('/api/admin/transaction/update', async (req, res) => {
         res.json({ success: true, message: `Transaction updated to ${status}` });
     } catch (e) {
         res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+app.post('/api/admin/announcement/update', async (req, res) => {
+    try {
+        const { text } = req.body;
+        let ann = await Announcement.findOne().sort({ updatedAt: -1 });
+        if (ann) {
+            ann.text = text;
+            ann.updatedAt = Date.now();
+            await ann.save();
+        } else {
+            ann = new Announcement({ text });
+            awaitann.save();
+        }
+        res.json({ success: true, message: 'Announcement updated' });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+app.get('/api/announcement', async (req, res) => {
+    try {
+        const ann = await Announcement.findOne().sort({ updatedAt: -1 });
+        res.json({ success: true, text: ann ? ann.text : '' });
+    } catch (e) {
+        res.status(500).json({ success: false, text: '' });
     }
 });
 
