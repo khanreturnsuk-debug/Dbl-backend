@@ -28,22 +28,31 @@ const userSchema = new mongoose.Schema({
     email: String,
     phone: String,
     password: String,
-    balance: { type: Number, default: 0 },        // Sirf earnings/profits (withdrawable)
-    investedAmount: { type: Number, default: 0 },  // VIP deposit principal (non-withdrawable)
+    balance: { type: Number, default: 0 },        // Withdrawable balance / winnings
+    investedAmount: { type: Number, default: 0 },  // Non-withdrawable principal/deposit
     vipLevel: { type: String, default: 'VIP 1' },
     referredBy: { type: String, default: '' },
     taskDone: { type: Boolean, default: false },
     lastTaskDate: { type: String, default: '' },
+    totalWagered: { type: Number, default: 0 },
+    gameHistory: [{
+        gameType: String,
+        betAmount: Number,
+        multiplier: Number,
+        payout: Number,
+        isWin: Boolean,
+        timestamp: { type: Date, default: Date.now }
+    }],
     createdAt: { type: Date, default: Date.now }
 });
 
 const transactionSchema = new mongoose.Schema({
     username: String,
-    type: String, 
+    type: String, // 'deposit' | 'withdrawal'
     amount: Number,
     tax: { type: Number, default: 0 },
     netAmount: { type: Number, default: 0 },
-    method: String,
+    method: String, // 'Easypaisa', 'JazzCash', 'Bank Transfer', 'USDT TRC20'
     accountDetails: String,
     status: { type: String, default: 'Pending' },
     createdAt: { type: Date, default: Date.now }
@@ -119,6 +128,83 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
+// ==========================================
+// NEW GAMING ENGINE ROUTE (Aviator / Mining / Dice)
+// ==========================================
+app.post('/api/game/play', async (req, res) => {
+    try {
+        await connectDB();
+        const { username, betAmount, gameType, multiplierChoice } = req.body;
+        const bAmount = Number(betAmount);
+
+        if (!username || bAmount <= 0) {
+            return res.status(400).json({ success: false, message: 'Valid username and bet amount required' });
+        }
+
+        const user = await User.findOne({ username: { $regex: new RegExp(`^${username}$`, 'i') } });
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+        if (user.balance < bAmount) {
+            return res.status(400).json({ success: false, message: 'Insufficient balance for this bet' });
+        }
+
+        // Deduct bet amount from balance
+        user.balance -= bAmount;
+        user.totalWagered = (user.totalWagered || 0) + bAmount;
+
+        let multiplier = 0;
+        let isWin = false;
+
+        if (gameType === 'mining') {
+            // 60% win probability example for grid/mining
+            isWin = Math.random() > 0.4;
+            multiplier = isWin ? 1.6 : 0;
+        } else if (gameType === 'aviator') {
+            // Crash point RNG (exponential-like distribution or target match)
+            const crashPoint = Number((1 + Math.random() * Math.random() * 8).toFixed(2));
+            const target = Number(multiplierChoice || 2.0);
+            if (crashPoint >= target) {
+                isWin = true;
+                multiplier = target;
+            } else {
+                isWin = false;
+                multiplier = 0;
+            }
+        } else {
+            // Default coin/dice multiplier fallback
+            isWin = Math.random() > 0.5;
+            multiplier = isWin ? 2.0 : 0;
+        }
+
+        const payout = Number((bAmount * multiplier).toFixed(2));
+        user.balance += payout;
+
+        const gameRecord = {
+            gameType: gameType || 'general',
+            betAmount: bAmount,
+            multiplier,
+            payout,
+            isWin,
+            timestamp: new Date()
+        };
+
+        user.gameHistory.push(gameRecord);
+        if (user.gameHistory.length > 50) user.gameHistory.shift(); // keep last 50
+
+        await user.save();
+        res.json({
+            success: true,
+            isWin,
+            multiplier,
+            payout,
+            balance: user.balance,
+            message: isWin ? `You won ${payout}!` : 'You lost this round!'
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 // Daily Task Completion Route with Automatic Midnight Reset
 app.post('/api/complete-task', async (req, res) => {
     try {
@@ -170,22 +256,22 @@ app.post('/api/complete-task', async (req, res) => {
     }
 });
 
-// Minimum Withdrawal Limit & 17% Tax Calculation
+// Pakistan Local + Crypto Withdrawal Route (Min 90 / PKR equivalent handling)
 app.post('/api/withdraw', async (req, res) => {
     try {
         await connectDB();
         const { username, method, accountNumber, accountName, amount } = req.body;
         const withdrawAmount = Number(amount);
 
-        if (withdrawAmount < 90) {
-            return res.status(400).json({ success: false, message: 'Minimum withdrawal amount is $90' });
+        if (withdrawAmount < 50) {
+            return res.status(400).json({ success: false, message: 'Minimum withdrawal amount is $50 / PKR equivalent' });
         }
 
         const user = await User.findOne({ username: { $regex: new RegExp(`^${username}$`, 'i') } });
         if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
         if (user.balance < withdrawAmount) {
-            return res.status(400).json({ success: false, message: 'Insufficient earnings balance for withdrawal. Deposited funds cannot be withdrawn.' });
+            return res.status(400).json({ success: false, message: 'Insufficient earnings/game balance for withdrawal.' });
         }
 
         const tax = withdrawAmount * 0.17;
@@ -197,87 +283,78 @@ app.post('/api/withdraw', async (req, res) => {
             amount: withdrawAmount, 
             tax: tax,
             netAmount: netAmount,
-            method, 
+            method: method || 'Easypaisa/JazzCash', 
             accountDetails: `${accountNumber} (${accountName})`, 
             status: 'Pending' 
         });
         await newTx.save();
-        res.json({ success: true, message: 'Withdrawal requested successfully' });
+        res.json({ success: true, message: 'Withdrawal requested successfully for manual review' });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
 });
 
-// Minimum Deposit Limit ($100) with Strict Tron TRC-20 Auto-Verification & Admin Unlimited Test Bypass
+// Pakistan Local (Easypaisa/JazzCash Manual Proof) + Crypto Deposit Route
 app.post('/api/deposit', async (req, res) => {
     try {
         await connectDB();
-        const { username, method, sender, amount, txid } = req.body;
+        const { username, method, sender, amount, txid, receiptInfo } = req.body;
         const depositAmount = Number(amount);
 
-        if (depositAmount < 100) {
-            return res.status(400).json({ success: false, message: 'Minimum deposit amount is $100' });
+        if (depositAmount < 10) {
+            return res.status(400).json({ success: false, message: 'Minimum deposit amount is $10 or PKR equivalent' });
         }
 
-        if (!txid || txid.trim() === '') {
-            return res.status(400).json({ success: false, message: 'Transaction Hash (TxID) is required for auto-verification' });
-        }
-
-        const cleanTxid = txid.trim();
-        const lowerUsername = username ? username.toLowerCase().trim() : '';
-        const TEST_ADMIN_TXID = "DBL_TEST_TXID_12345";
-
+        const isLocalPK = ['easypaisa', 'jazzcash', 'bank transfer'].includes((method || '').toLowerCase());
         let isValidTransfer = false;
+        let cleanTxid = (txid || receiptInfo || '').trim();
 
-        // ==========================================
-        // ADMIN UNLIMITED TEST TRANSACTION BYPASS (Only for anas_admin)
-        // ==========================================
-        if (cleanTxid === TEST_ADMIN_TXID) {
-            if (lowerUsername === 'anas_admin') {
-                isValidTransfer = true; 
-            } else {
-                return res.status(400).json({ 
-                    success: false, 
-                    message: 'Invalid or unauthorized transaction ID.' 
-                });
+        if (isLocalPK) {
+            // Local PK manual verification receipt submit flow
+            if (!cleanTxid) {
+                return res.status(400).json({ success: false, message: 'Transaction ID / TID / Screenshot reference is required for local payment verification.' });
             }
+            isValidTransfer = true; // Goes to pending review or immediate test bypass if admin
         } else {
-            const existingTx = await Transaction.findOne({ accountDetails: { $regex: cleanTxid, $options: 'i' } });
-            if (existingTx) {
-                return res.status(400).json({ success: false, message: 'This Transaction ID (TxID) has already been used!' });
-            }
-
-            try {
-                const tronGridUrl = `https://api.trongrid.io/v1/transactions/${cleanTxid}/events`;
-                const response = await axios.get(tronGridUrl);
-                const events = response.data.data;
-
-                if (events && events.length > 0) {
-                    for (let event of events) {
-                        if (event.contract_address === USDT_CONTRACT && event.event_name === 'Transfer') {
-                            const toAddress = event.result.to;
-                            const rawValue = Number(event.result.value);
-                            const actualValue = rawValue / 1000000;
-
-                            if (toAddress === ADMIN_WALLET && actualValue >= depositAmount) {
-                                isValidTransfer = true;
-                                break;
+            // Crypto TRC20 verification logic (existing)
+            const TEST_ADMIN_TXID = "DBL_TEST_TXID_12345";
+            const lowerUsername = username ? username.toLowerCase().trim() : '';
+            if (cleanTxid === TEST_ADMIN_TXID && lowerUsername === 'anas_admin') {
+                isValidTransfer = true;
+            } else if (cleanTxid === TEST_ADMIN_TXID) {
+                return res.status(400).json({ success: false, message: 'Invalid or unauthorized transaction ID.' });
+            } else {
+                const existingTx = await Transaction.findOne({ accountDetails: { $regex: cleanTxid,$options: 'i' } });
+                if (existingTx) {
+                    return res.status(400).json({ success: false, message: 'This Transaction ID (TxID) has already been used!' });
+                }
+                try {
+                    const tronGridUrl = `https://api.trongrid.io/v1/transactions/${cleanTxid}/events`;
+                    const response = await axios.get(tronGridUrl);
+                    const events = response.data.data;
+                    if (events && events.length > 0) {
+                        for (let event of events) {
+                            if (event.contract_address === USDT_CONTRACT && event.event_name === 'Transfer') {
+                                const toAddress = event.result.to;
+                                const actualValue = Number(event.result.value) / 1000000;
+                                if (toAddress === ADMIN_WALLET && actualValue >= depositAmount) {
+                                    isValidTransfer = true;
+                                    break;
+                                }
                             }
                         }
                     }
+                } catch (apiErr) {
+                    isValidTransfer = false;
                 }
-            } catch (apiErr) {
-                console.error('TronGrid API Error or Invalid TxID:', apiErr.message);
-                isValidTransfer = false;
             }
         }
 
-        if (!isValidTransfer) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Auto-verification failed! Invalid TxID, transaction not found on blockchain, amount mismatch, or incorrect recipient.' 
-            });
+        if (!isValidTransfer && !isLocalPK) {
+            return res.status(400).json({ success: false, message: 'Auto-verification failed! Invalid Crypto TxID.' });
         }
+
+        const initialStatus = isLocalPK ? 'Pending' : 'Approved';
 
         const newTx = new Transaction({ 
             username, 
@@ -285,18 +362,25 @@ app.post('/api/deposit', async (req, res) => {
             amount: depositAmount, 
             netAmount: depositAmount,
             method: method || 'USDT TRC20', 
-            accountDetails: `TxID: ${cleanTxid} | Sender: ${sender || 'N/A'}`, 
-            status: 'Approved' 
+            accountDetails: `Ref/TxID: ${cleanTxid} | Sender: ${sender || 'N/A'}`, 
+            status: initialStatus 
         });
         await newTx.save();
 
-        const updatedUser = await User.findOneAndUpdate(
-            { username: { $regex: new RegExp(`^${username}$`, 'i') } },
-            { $inc: { investedAmount: depositAmount, balance: depositAmount } },
-            { new: true }
-        );
+        let updatedUser = null;
+        if (!isLocalPK) {
+            updatedUser = await User.findOneAndUpdate(
+                { username: { $regex: new RegExp(`^${username}$`, 'i') } },
+                { $inc: { investedAmount: depositAmount, balance: depositAmount } },
+                { new: true }
+            );
+        }
 
-        return res.json({ success: true, message: 'Deposit verified and approved successfully!', user: updatedUser });
+        return res.json({ 
+            success: true, 
+            message: isLocalPK ? 'Local deposit submitted for admin approval!' : 'Deposit verified and approved successfully!', 
+            user: updatedUser 
+        });
 
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -332,9 +416,9 @@ app.post('/api/admin/user/update', async (req, res) => {
         await connectDB();
         const { userId, username, email, password } = req.body;
         await User.findByIdAndUpdate(userId, { username, email, password });
-        res.json({ success: { success: true }, message: 'User updated successfully' });
+        res.json({ success: true, message: 'User updated successfully' });
     } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
+        res.status(500).json({ success: false, message: err.change || err.message });
     }
 });
 
@@ -410,6 +494,7 @@ app.get('/api/announcements', async (req, res) => {
     }
 });
 
+app.post('/api/admin/announcement/update', additions = false, ...rest);
 app.post('/api/admin/announcement/update', async (req, res) => {
     try {
         await connectDB();
