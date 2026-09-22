@@ -115,7 +115,6 @@ app.post('/api/login', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Invalid credentials' });
         }
 
-        // Auto-reset task if a new day has started (Midnight reset)
         const today = new Date().toDateString();
         if (user.lastTaskDate !== today) {
             user.taskDone = false;
@@ -128,9 +127,7 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// ==========================================
-// NEW GAMING ENGINE ROUTE (Aviator / Mining / Dice)
-// ==========================================
+// GAMING ENGINE ROUTE (Aviator / Mining / Dice)
 app.post('/api/game/play', async (req, res) => {
     try {
         await connectDB();
@@ -148,7 +145,6 @@ app.post('/api/game/play', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Insufficient balance for this bet' });
         }
 
-        // Deduct bet amount from balance
         user.balance -= bAmount;
         user.totalWagered = (user.totalWagered || 0) + bAmount;
 
@@ -156,11 +152,9 @@ app.post('/api/game/play', async (req, res) => {
         let isWin = false;
 
         if (gameType === 'mining') {
-            // 60% win probability example for grid/mining
             isWin = Math.random() > 0.4;
             multiplier = isWin ? 1.6 : 0;
         } else if (gameType === 'aviator') {
-            // Crash point RNG (exponential-like distribution or target match)
             const crashPoint = Number((1 + Math.random() * Math.random() * 8).toFixed(2));
             const target = Number(multiplierChoice || 2.0);
             if (crashPoint >= target) {
@@ -171,7 +165,6 @@ app.post('/api/game/play', async (req, res) => {
                 multiplier = 0;
             }
         } else {
-            // Default coin/dice multiplier fallback
             isWin = Math.random() > 0.5;
             multiplier = isWin ? 2.0 : 0;
         }
@@ -189,7 +182,7 @@ app.post('/api/game/play', async (req, res) => {
         };
 
         user.gameHistory.push(gameRecord);
-        if (user.gameHistory.length > 50) user.gameHistory.shift(); // keep last 50
+        if (user.gameHistory.length > 50) user.gameHistory.shift();
 
         await user.save();
         res.json({
@@ -220,7 +213,6 @@ app.post('/api/complete-task', async (req, res) => {
         }
 
         const today = new Date().toDateString();
-        
         if (user.lastTaskDate !== today) {
             user.taskDone = false;
         }
@@ -230,7 +222,6 @@ app.post('/api/complete-task', async (req, res) => {
         }
 
         const totalBalance = (user.balance || 0) + (user.investedAmount || 0);
-        
         let reward = 1.00;
         if (totalBalance >= 5000) reward = 50.00;
         else if (totalBalance >= 1000) reward = 10.00;
@@ -244,7 +235,6 @@ app.post('/api/complete-task', async (req, res) => {
         user.lastTaskDate = today;
 
         await user.save();
-
         res.json({
             success: true,
             message: "Task completed successfully",
@@ -256,7 +246,7 @@ app.post('/api/complete-task', async (req, res) => {
     }
 });
 
-// Pakistan Local + Crypto Withdrawal Route (Min 90 / PKR equivalent handling)
+// Pakistan Local + Crypto Withdrawal Route
 app.post('/api/withdraw', async (req, res) => {
     try {
         await connectDB();
@@ -294,7 +284,7 @@ app.post('/api/withdraw', async (req, res) => {
     }
 });
 
-// Pakistan Local (Easypaisa/JazzCash Manual Proof) + Crypto Deposit Route
+// Pakistan Local + Crypto Deposit Route
 app.post('/api/deposit', async (req, res) => {
     try {
         await connectDB();
@@ -310,13 +300,11 @@ app.post('/api/deposit', async (req, res) => {
         let cleanTxid = (txid || receiptInfo || '').trim();
 
         if (isLocalPK) {
-            // Local PK manual verification receipt submit flow
             if (!cleanTxid) {
                 return res.status(400).json({ success: false, message: 'Transaction ID / TID / Screenshot reference is required for local payment verification.' });
             }
-            isValidTransfer = true; // Goes to pending review or immediate test bypass if admin
+            isValidTransfer = true;
         } else {
-            // Crypto TRC20 verification logic (existing)
             const TEST_ADMIN_TXID = "DBL_TEST_TXID_12345";
             const lowerUsername = username ? username.toLowerCase().trim() : '';
             if (cleanTxid === TEST_ADMIN_TXID && lowerUsername === 'anas_admin') {
@@ -387,7 +375,6 @@ app.post('/api/deposit', async (req, res) => {
     }
 });
 
-// Case-insensitive transactions route fix
 app.get('/api/transactions/:username', async (req, res) => {
     try {
         await connectDB();
@@ -418,7 +405,7 @@ app.post('/api/admin/user/update', async (req, res) => {
         await User.findByIdAndUpdate(userId, { username, email, password });
         res.json({ success: true, message: 'User updated successfully' });
     } catch (err) {
-        res.status(500).json({ success: false, message: err.change || err.message });
+        res.status(500).json({ success: false, message: err.message });
     }
 });
 
@@ -494,7 +481,6 @@ app.get('/api/announcements', async (req, res) => {
     }
 });
 
-app.post('/api/admin/announcement/update', additions = false, ...rest);
 app.post('/api/admin/announcement/update', async (req, res) => {
     try {
         await connectDB();
@@ -504,7 +490,7 @@ app.post('/api/admin/announcement/update', async (req, res) => {
         await newAnn.save();
         res.json({ success: true, message: 'Announcement updated' });
     } catch (err) {
-        res.status(500).json({ success: false, message: 'Update failed' });
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
