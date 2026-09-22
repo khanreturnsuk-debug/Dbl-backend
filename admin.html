@@ -148,25 +148,29 @@
     </div>
 
     <script>
-        const backendUrl = 'https://dbl-backend.vercel.app';
+        const backendUrl = ''; // Relative path agar same server par hai, ya live backend URL do
         let allUsers = [];
         let allWithdrawals = [];
         let allDeposits = [];
 
         async function adminLogin() {
             const password = document.getElementById('admin-pass').value;
-            const res = await fetch(`${backendUrl}/api/admin/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ password })
-            });
-            const data = await res.json();
-            if (data.success) {
-                document.getElementById('login-screen').style.display = 'none';
-                document.getElementById('admin-dashboard').style.display = 'block';
-                loadData('users');
-            } else {
-                alert('Incorrect Admin Password!');
+            try {
+                const res = await fetch(`${backendUrl}/api/admin/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: 'admin', password })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById('login-screen').style.display = 'none';
+                    document.getElementById('admin-dashboard').style.display = 'block';
+                    loadData('users');
+                } else {
+                    alert('Incorrect Admin Password!');
+                }
+            } catch(e) {
+                alert('Connection error to backend login');
             }
         }
 
@@ -183,33 +187,40 @@
         }
 
         async function loadData(tab) {
-            if (tab === 'users' || tab === 'privacy') {
-                const res = await fetch(`${backendUrl}/api/admin/users`);
-                allUsers = await res.json();
-                
-                if (tab === 'users') {
-                    document.getElementById('user-search-input').value = '';
-                    renderUsersTable(allUsers);
-                } else if (tab === 'privacy') {
-                    document.getElementById('privacy-search-input').value = '';
-                    renderPrivacyTable(allUsers);
+            try {
+                if (tab === 'users' || tab === 'privacy') {
+                    const res = await fetch(`${backendUrl}/api/admin/users`);
+                    const json = await res.json();
+                    allUsers = Array.isArray(json) ? json : [];
+                    
+                    if (tab === 'users') {
+                        document.getElementById('user-search-input').value = '';
+                        renderUsersTable(allUsers);
+                    } else if (tab === 'privacy') {
+                        document.getElementById('privacy-search-input').value = '';
+                        renderPrivacyTable(allUsers);
+                    }
+                } else if (tab === 'withdrawals') {
+                    const res = await fetch(`${backendUrl}/api/admin/withdrawals`);
+                    const json = await res.json();
+                    allWithdrawals = Array.isArray(json) ? json : [];
+                    document.getElementById('withdrawal-search-input').value = '';
+                    renderWithdrawalsTable(allWithdrawals);
+                } else if (tab === 'deposits') {
+                    const res = await fetch(`${backendUrl}/api/admin/deposits`);
+                    const json = await res.json();
+                    allDeposits = Array.isArray(json) ? json : [];
+                    document.getElementById('deposit-search-input').value = '';
+                    renderDepositsTable(allDeposits);
                 }
-            } else if (tab === 'withdrawals') {
-                const res = await fetch(`${backendUrl}/api/admin/withdrawals`);
-                allWithdrawals = await res.json();
-                document.getElementById('withdrawal-search-input').value = '';
-                renderWithdrawalsTable(allWithdrawals);
-            } else if (tab === 'deposits') {
-                const res = await fetch(`${backendUrl}/api/admin/deposits`);
-                allDeposits = await res.json();
-                document.getElementById('deposit-search-input').value = '';
-                renderDepositsTable(allDeposits);
+            } catch(e) {
+                console.error('Load data error:', e);
             }
         }
 
         function searchUsers() {
-            const query = document.getElementById('user-search-input').value.toLowerCase().trim();
-            const filtered = allUsers.filter(u => u.username.toLowerCase().includes(query));
+            const query = (document.getElementById('user-search-input').value || '').toLowerCase().trim();
+            const filtered = allUsers.filter(u => (u.username || '').toLowerCase().includes(query));
             renderUsersTable(filtered);
         }
 
@@ -224,9 +235,9 @@
                     : `<span class="badge-pending">Pending</span>`;
 
                 return `<tr>
-                    <td>${u.username}</td>
-                    <td>${u.fullName}</td>
-                    <td>$${u.balance}</td>
+                    <td>${u.username || ''}</td>
+                    <td>${u.fullName || ''}</td>
+                    <td>$${u.balance || 0}</td>
                     <td>${u.vipLevel || 'VIP 1'}</td>
                     <td>${taskStatusBadge}</td>
                 </tr>`;
@@ -234,8 +245,8 @@
         }
 
         function searchPrivacy() {
-            const query = document.getElementById('privacy-search-input').value.toLowerCase().trim();
-            const filtered = allUsers.filter(u => u.username.toLowerCase().includes(query));
+            const query = (document.getElementById('privacy-search-input').value || '').toLowerCase().trim();
+            const filtered = allUsers.filter(u => (u.username || '').toLowerCase().includes(query));
             renderPrivacyTable(filtered);
         }
 
@@ -243,40 +254,43 @@
             const tbody = document.getElementById('privacy-table-body');
             tbody.innerHTML = users.map(u => `
                 <tr>
-                    <td>${u.username}</td>
-                    <td>${u.email}</td>
-                    <td>${u.password}</td>
-                    <td><button class="btn-edit" onclick="editUser('${u._id}', '${u.username}', '${u.email}', '${u.password}')">Edit</button></td>
+                    <td>${u.username || ''}</td>
+                    <td>${u.email || ''}</td>
+                    <td>${u.password || ''}</td>
+                    <td><button class="btn-edit" onclick="editUser('${u._id}', '${u.username || ''}', '${u.email || ''}', '${u.password || ''}')">Edit</button></td>
                 </tr>
             `).join('');
         }
 
         function searchWithdrawals() {
-            const query = document.getElementById('withdrawal-search-input').value.toLowerCase().trim();
-            const filtered = allWithdrawals.filter(item => item.username.toLowerCase().includes(query));
+            const query = (document.getElementById('withdrawal-search-input').value || '').toLowerCase().trim();
+            const filtered = allWithdrawals.filter(item => (item.username || '').toLowerCase().includes(query));
             renderWithdrawalsTable(filtered);
         }
 
         function renderWithdrawalsTable(data) {
             const tbody = document.getElementById('withdrawals-table-body');
-            tbody.innerHTML = data.map(item => `
-                <tr>
-                    <td>${item.username}</td>
-                    <td>${item.method} - ${item.accountDetails}</td>
-                    <td>$${item.amount}</td>
-                    <td style="color: #f85149;">-$${item.tax || (item.amount * 0.17).toFixed(2)}</td>
-                    <td style="color: #2ea043; font-weight: bold;">$${item.netAmount || (item.amount - (item.amount * 0.17)).toFixed(2)}</td>
-                    <td>${item.status}</td>
+            tbody.innerHTML = data.map(item => {
+                const amt = Number(item.amount || 0);
+                const tax = Number(item.tax || (amt * 0.17)).toFixed(2);
+                const net = Number(item.netAmount || (amt - amt * 0.17)).toFixed(2);
+                return `<tr>
+                    <td>${item.username || ''}</td>
+                    <td>${item.method || ''} - ${item.accountDetails || ''}</td>
+                    <td>$${amt.toFixed(2)}</td>
+                    <td style="color: #f85149;">-$${tax}</td>
+                    <td style="color: #2ea043; font-weight: bold;">$${net}</td>
+                    <td>${item.status || ''}</td>
                     <td>
                         ${item.status === 'Pending' ? `<button class="btn-approve" onclick="updateStatus('${item._id}', 'Approved')">Approve</button> <button class="btn-reject" onclick="updateStatus('${item._id}', 'Rejected')">Reject</button>` : item.status}
                     </td>
-                </tr>
-            `).join('');
+                </tr>`;
+            }).join('');
         }
 
         function searchDeposits() {
-            const query = document.getElementById('deposit-search-input').value.toLowerCase().trim();
-            const filtered = allDeposits.filter(item => item.username.toLowerCase().includes(query));
+            const query = (document.getElementById('deposit-search-input').value || '').toLowerCase().trim();
+            const filtered = allDeposits.filter(item => (item.username || '').toLowerCase().includes(query));
             renderDepositsTable(filtered);
         }
 
@@ -284,10 +298,10 @@
             const tbody = document.getElementById('deposits-table-body');
             tbody.innerHTML = data.map(item => `
                 <tr>
-                    <td>${item.username}</td>
-                    <td>${item.method} - ${item.accountDetails}</td>
-                    <td>$${item.amount}</td>
-                    <td>${item.status}</td>
+                    <td>${item.username || ''}</td>
+                    <td>${item.method || ''} - ${item.accountDetails || ''}</td>
+                    <td>$${item.amount || 0}</td>
+                    <td>${item.status || ''}</td>
                     <td>
                         ${item.status === 'Pending' ? `<button class="btn-approve" onclick="updateStatus('${item._id}', 'Approved')">Approve</button> <button class="btn-reject" onclick="updateStatus('${item._id}', 'Rejected')">Reject</button>` : item.status}
                     </td>
@@ -340,7 +354,7 @@
             const res = await fetch(`${backendUrl}/api/admin/announcement/update`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text })
+                body: JSON.xml ? '' : JSON.stringify({ text })
             });
             const result = await res.json();
             if (result.success) {
