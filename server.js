@@ -8,13 +8,31 @@ app.use(express.json());
 app.use(cors());
 app.use(express.static(__dirname)); // Frontend HTML/CSS/JS serve karne ke liye
 
-// MongoDB Connection
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/dbl_portal';
-mongoose.connect(MONGO_URI)
-    .then(() => console.log('✅ MongoDB connected successfully'))
-    .catch(err => console.error('❌ MongoDB connection error:', err));
+// MongoDB Connection with Serverless Safety
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://...'; // Vercel env mein Atlas URL do
 
-// Schemas & Models
+async function connectDB() {
+    if (mongoose.connection.readyState >= 1) return;
+    try {
+        await mongoose.connect(MONGO_URI);
+        console.log('✅ MongoDB connected successfully');
+    } catch (err) {
+        console.error('❌ MongoDB connection error:', err);
+        throw err;
+    }
+}
+
+// Middleware to ensure DB connection per request safely
+app.use(async (req, res, next) => {
+    try {
+        await connectDB();
+    } catch (e) {
+        // continue or let handlers deal with it
+    }
+    next();
+});
+
+// Schemas & Models (using mongoose.models to prevent overwrite error in serverless)
 const userSchema = new mongoose.Schema({
     fullName: String,
     username: { type: String, unique: true },
@@ -23,7 +41,7 @@ const userSchema = new mongoose.Schema({
     password: String,
     balance: { type: Number, default: 50 } // Signup welcome bonus $50
 });
-const User = mongoose.model('User', userSchema);
+const User = mongoose.models.User || mongoose.model('User', userSchema);
 
 const transactionSchema = new mongoose.Schema({
     username: String,
@@ -34,7 +52,7 @@ const transactionSchema = new mongoose.Schema({
     status: { type: String, default: 'Pending' }, // Pending, Approved, Rejected
     createdAt: { type: Date, default: Date.now }
 });
-const Transaction = mongoose.model('Transaction', transactionSchema);
+const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
 
 // --- AUTH & USER ROUTES ---
 
@@ -97,7 +115,6 @@ app.post('/api/game/play', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Insufficient balance or invalid bet' });
         }
 
-        // Aviator crash multiplier simulation (1.00x to 4.50x random)
         const crashMultiplier = Number((Math.random() * 3.5 + 1).toFixed(2));
         const target = Number(multiplierChoice || 2.0);
         
@@ -109,7 +126,6 @@ app.post('/api/game/play', async (req, res) => {
             winAmount = betNum * target;
         }
 
-        // Deduct bet and add winning if won
         user.balance = user.balance - betNum + (isWin ? winAmount : 0);
         await user.save();
 
@@ -200,7 +216,6 @@ app.post('/api/admin/transaction/update', async (req, res) => {
         const tx = await Transaction.findById(reqId);
         if (!tx) return res.status(404).json({ success: false, message: 'Transaction not found' });
 
-        // Agar deposit approve ho raha hai toh user balance mein add kar do
         if (status === 'Approved' && tx.status !== 'Approved' && tx.type === 'Deposit') {
             const user = await User.findOne({ username: tx.username });
             if (user) {
@@ -213,9 +228,13 @@ app.post('/api/admin/transaction/update', async (req, res) => {
         await tx.save();
         res.json({ success: true, message: `Transaction updated to ${status}` });
     } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
+        res.status(500).json({ success: false, message: e.main || e.message });
     }
 });
 
+// Vercel & Local Export Fix
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+if (require.main === module) {
+    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+}
+module.exports = app;
