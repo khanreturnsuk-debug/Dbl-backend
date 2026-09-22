@@ -24,7 +24,6 @@ async function connectDB() {
     console.log('✅ MongoDB connected successfully');
 }
 
-// Global DB middleware handler
 app.use(async (req, res, next) => {
     try {
         await connectDB();
@@ -255,7 +254,7 @@ app.post('/api/admin/transaction/update', async (req, res) => {
         if (!tx) return res.status(404).json({ success: false, message: 'Transaction not found' });
 
         if (status === 'Approved' && tx.status !== 'Approved' && tx.type === 'Deposit') {
-            const user = await User.findOne({ username:l tx.username });
+            const user = await User.findOne({ username: tx.username });
             if (user) {
                 user.balance += Number(tx.amount);
                 await user.save();
@@ -280,7 +279,7 @@ app.post('/api/admin/announcement/update', async (req, res) => {
             await ann.save();
         } else {
             ann = new Announcement({ text });
-            awaitann.save();
+            await ann.save();
         }
         res.json({ success: true, message: 'Announcement updated' });
     } catch (e) {
@@ -297,9 +296,8 @@ app.get('/api/announcement', async (req, res) => {
     }
 });
 
-// Root check or health check endpoint
 app.get('/', (req, res) => {
-    res.send('API is running on Vercel');
+    res.send('API is running');
 });
 
 const PORT = process.env.PORT || 5000;
