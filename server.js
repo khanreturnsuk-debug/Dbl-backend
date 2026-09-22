@@ -6,56 +6,57 @@ const cors = require('cors');
 const app = express();
 app.use(express.json());
 app.use(cors());
-app.use(express.static(__dirname)); // Frontend HTML/CSS/JS serve karne ke liye
+app.use(express.static(__dirname));
 
-// MongoDB Connection with Serverless Safety
-const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://...'; // Vercel env mein Atlas URL do
+const MONGO_URI = process.env.MONGO_URI;
 
+let isConnected = false;
 async function connectDB() {
-    if (mongoose.connection.readyState >= 1) return;
-    try {
-        await mongoose.connect(MONGO_URI);
-        console.log('✅ MongoDB connected successfully');
-    } catch (err) {
-        console.error('❌ MongoDB connection error:', err);
-        throw err;
+    if (isConnected || mongoose.connection.readyState >= 1) {
+        isConnected = true;
+        return;
     }
+    if (!MONGO_URI) {
+        throw new Error('MONGO_URI is missing');
+    }
+    await mongoose.connect(MONGO_URI);
+    isConnected = true;
+    console.log('✅ MongoDB connected successfully');
 }
 
-// Middleware to ensure DB connection per request safely
+// Global DB middleware handler
 app.use(async (req, res, next) => {
     try {
         await connectDB();
-    } catch (e) {
-        // continue or let handlers deal with it
+    } catch (err) {
+        console.error('DB connect warning:', err.message);
     }
     next();
 });
 
-// Schemas & Models (using mongoose.models to prevent overwrite error in serverless)
+// Schemas & Models
 const userSchema = new mongoose.Schema({
     fullName: String,
     username: { type: String, unique: true },
     email: String,
     phone: String,
     password: String,
-    balance: { type: Number, default: 50 } // Signup welcome bonus $50
+    balance: { type: Number, default: 50 }
 });
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 
 const transactionSchema = new mongoose.Schema({
     username: String,
-    type: String, // 'Deposit' or 'Withdraw'
+    type: String,
     method: String,
     amount: Number,
     accountDetails: String,
-    status: { type: String, default: 'Pending' }, // Pending, Approved, Rejected
+    status: { type: String, default: 'Pending' },
     createdAt: { type: Date, default: Date.now }
 });
 const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
 
 // --- AUTH & USER ROUTES ---
-
 app.post('/api/register', async (req, res) => {
     try {
         const { fullName, username, email, phone, password } = req.body;
@@ -92,7 +93,6 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// Admin direct login API check
 app.post('/api/admin/login', (req, res) => {
     const { username, password } = req.body;
     if ((username === 'admin123' || username === 'admin') && password === '12345') {
@@ -102,11 +102,10 @@ app.post('/api/admin/login', (req, res) => {
     }
 });
 
-// --- GAME LOGIC ROUTE (Aviator / Mining) ---
-
+// --- GAME LOGIC ROUTE ---
 app.post('/api/game/play', async (req, res) => {
     try {
-        const { username, betAmount, gameType, multiplierChoice } = req.body;
+        const { username, betAmount, multiplierChoice } = req.body;
         const user = await User.findOne({ username });
         if (!user) return res.status(404).json({ success: false, message: 'User not found' });
         
@@ -141,8 +140,7 @@ app.post('/api/game/play', async (req, res) => {
     }
 });
 
-// --- WALLET & DEPOSIT/WITHDRAWAL ROUTES ---
-
+// --- WALLET ROUTES ---
 app.post('/api/deposit', async (req, res) => {
     try {
         const { username, method, sender, amount, receiptInfo } = req.body;
@@ -191,7 +189,6 @@ app.post('/api/withdraw', async (req, res) => {
 });
 
 // --- ADMIN PANEL API ROUTES ---
-
 app.get('/api/admin/withdrawals', async (req, res) => {
     try {
         const list = await Transaction.find({ type: 'Withdraw' }).sort({ createdAt: -1 });
@@ -228,13 +225,18 @@ app.post('/api/admin/transaction/update', async (req, res) => {
         await tx.save();
         res.json({ success: true, message: `Transaction updated to ${status}` });
     } catch (e) {
-        res.status(500).json({ success: false, message: e.main || e.message });
+        res.status(500).json({ success: false, message: e.message });
     }
 });
 
-// Vercel & Local Export Fix
+// Root check or health check endpoint
+app.get('/', (req, res) => {
+    res.send('API is running on Vercel');
+});
+
 const PORT = process.env.PORT || 5000;
 if (require.main === module) {
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 }
+
 module.exports = app;
